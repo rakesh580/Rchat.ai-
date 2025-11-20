@@ -1,3 +1,15 @@
+# Ignore macOS files
+.DS_Store
+
+# Ignore Python venv
+.venv/
+venv/
+env/
+
+# Ignore IDE files
+.vscode/
+.idea/
+
 # Logs
 logs
 *.log
