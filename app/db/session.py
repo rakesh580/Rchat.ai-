@@ -1,14 +1,16 @@
+# app/db/session.py
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.orm import declarative_base
 
-DATABASE_URL = "sqlite:///./rchat.db"  # later we'll change to PostgreSQL
+from app.core.config import settings
+
+connect_args = {}
+if settings.DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
 
 engine = create_engine(
-    DATABASE_URL,
-    connect_args={"check_same_thread": False},  # sqlite only
+    settings.DATABASE_URL,
+    connect_args=connect_args,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base = declarative_base()
