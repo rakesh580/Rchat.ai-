@@ -1,3 +1,7 @@
-from sqlalchemy.orm import declarative_base
+# app/db/base_class.py
+from sqlalchemy.orm import DeclarativeBase
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    """Base class for all ORM models."""
+    pass

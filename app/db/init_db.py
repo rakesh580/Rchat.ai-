@@ -1,10 +1,11 @@
+# app/db/init_db.py
 from app.db.session import engine
 from app.db.base_class import Base
 
-# Import all models so Base.metadata knows them
-from app.models.user import User
+# Import models so they are registered with Base.metadata
+import app.models  # noqa
 
-def init_db():
-    print("Initializing database...")
+
+def init_db() -> None:
+    """Create all tables if they don't exist."""
     Base.metadata.create_all(bind=engine)
-    print("Database tables created.")

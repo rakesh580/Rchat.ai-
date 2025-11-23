@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, HTTPException
+# app/api/v1/auth.py
+from datetime import timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
 from app.db.session import SessionLocal
-from app.schemas.user import UserCreate, UserOut
-from app.services.user_service import create_user
-from app.schemas.user import UserLogin, Token
+from app.schemas.user import UserCreate, UserOut, UserLogin, Token
+from app.services.user_service import create_user, authenticate_user
 from app.core.security import create_access_token
-from app.services.user_service import authenticate_user
+from app.core.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
 
 def get_db():
     db = SessionLocal()
@@ -16,9 +20,9 @@ def get_db():
     finally:
         db.close()
 
+
 @router.post("/register", response_model=UserOut)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    # Later add email/username validation
     user = create_user(db, user_in)
     return user
 
@@ -26,10 +30,13 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 def login(user_in: UserLogin, db: Session = Depends(get_db)):
     user = authenticate_user(db, user_in.username_or_email, user_in.password)
-
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid credentials")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username/email or password",
+        )
 
-    token = create_access_token({"sub": str(user.id)})
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    token = create_access_token(subject=str(user.id), expires_delta=access_token_expires)
 
-    return {"access_token": token, "token_type": "bearer"}
+    return Token(access_token=token)
