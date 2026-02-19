@@ -40,5 +40,8 @@ lerna-debug.log*
 *.sublime-project
 *.sublime-workspace
 
+# Uploaded files
+uploads/
+
 # System files
 Thumbs.db

@@ -1,11 +1,20 @@
 import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { api } from "../api";
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const justRegistered = location.state?.registered;
+
   const [emailOrUsername, setEmailOrUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
 
@@ -14,7 +23,19 @@ export default function Login() {
       return;
     }
 
-    console.log("Login:", emailOrUsername, password);
+    setLoading(true);
+    try {
+      const data = await api("/auth/login", {
+        method: "POST",
+        body: { username_or_email: emailOrUsername, password },
+      });
+      login(data.access_token);
+      navigate("/chat");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -23,6 +44,12 @@ export default function Login() {
       <div className="login-card">
 
         <h2 className="text-center fw-bold mb-4">Login</h2>
+
+        {justRegistered && (
+          <div className="alert alert-success text-center py-2">
+            Account created! Please log in.
+          </div>
+        )}
 
         {error && (
           <div className="alert alert-danger text-center py-2">{error}</div>
@@ -52,16 +79,19 @@ export default function Login() {
             />
           </div>
 
-          <button className="btn btn-primary w-100 py-2 fw-semibold">
-            Login
+          <button
+            className="btn btn-primary w-100 py-2 fw-semibold"
+            disabled={loading}
+          >
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
 
         <p className="text-center mt-3">
           New to Rchat.ai?{" "}
-          <a href="/register" className="text-primary fw-semibold">
+          <Link to="/register" className="text-primary fw-semibold">
             Create an account
-          </a>
+          </Link>
         </p>
       </div>
     </div>

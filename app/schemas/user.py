@@ -1,5 +1,8 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
+from datetime import datetime
+from typing import Optional
 import re
+
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -22,29 +25,55 @@ class UserCreate(BaseModel):
             raise ValueError("Password must contain a special character")
         return v
 
-# ---------------------------
-# What we return after registration
-# ---------------------------
+
 class UserOut(BaseModel):
-    id: int
+    id: str = Field(..., alias="_id")
     email: EmailStr
     username: str
+    display_name: str = ""
 
     class Config:
-        from_attributes = True
+        populate_by_name = True
 
 
-# ---------------------------
-# Incoming login request
-# ---------------------------
+class UserProfile(BaseModel):
+    id: str = Field(..., alias="_id")
+    username: str
+    display_name: str = ""
+    avatar_url: str = ""
+    bio: str = ""
+    is_online: bool = False
+    last_seen: Optional[datetime] = None
+    is_bot: bool = False
+
+    class Config:
+        populate_by_name = True
+
+
+class UserProfileUpdate(BaseModel):
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+
+    @field_validator("bio")
+    def validate_bio(cls, v):
+        if v is not None and len(v) > 150:
+            raise ValueError("Bio cannot exceed 150 characters")
+        return v
+
+    @field_validator("display_name")
+    def validate_display_name(cls, v):
+        if v is not None and len(v) > 50:
+            raise ValueError("Display name cannot exceed 50 characters")
+        if v is not None and len(v.strip()) == 0:
+            raise ValueError("Display name cannot be empty")
+        return v
+
+
 class UserLogin(BaseModel):
     username_or_email: str
     password: str
 
 
-# ---------------------------
-# JWT response model
-# ---------------------------
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

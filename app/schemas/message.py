@@ -1,18 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 
 
-class MessageCreate(BaseModel):
-    receiver_id: int
-    content: str
-
-
 class MessageOut(BaseModel):
-    id: int
-    sender_id: int
-    receiver_id: int
+    id: str = Field(..., alias="_id")
+    conversation_id: str
+    sender_id: str
     content: str
-    timestamp: datetime
+    message_type: str = "text"
+    status: str = "sent"
+    read_by: list[str] = []
+    created_at: datetime
 
     class Config:
-        from_attributes = True
+        populate_by_name = True
