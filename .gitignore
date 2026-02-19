@@ -28,7 +28,8 @@ lerna-debug.log*
 
 # Env files
 .env
-.env.* 
+.env.*
+!.env.example
 
 # Editor files
 .vscode/
