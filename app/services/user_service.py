@@ -1,12 +1,21 @@
 from datetime import datetime
 from bson import ObjectId
+from bson.errors import InvalidId
 from app.db.mongo import users_collection
 from app.core.security import hash_password, verify_password
 from app.schemas.user import UserCreate
 
 
+def _safe_oid(value: str) -> ObjectId:
+    """Convert string to ObjectId, raising ValueError on invalid input."""
+    try:
+        return ObjectId(value)
+    except (InvalidId, TypeError):
+        raise ValueError(f"Invalid ID: {value}")
+
+
 def get_user_by_id(user_id: str):
-    return users_collection.find_one({"_id": ObjectId(user_id)})
+    return users_collection.find_one({"_id": _safe_oid(user_id)})
 
 
 def get_user_by_email(email: str):
@@ -51,7 +60,7 @@ def update_user_profile(user_id: str, updates: dict) -> dict | None:
     if not clean:
         return get_user_by_id(user_id)
     users_collection.update_one(
-        {"_id": ObjectId(user_id)},
+        {"_id": _safe_oid(user_id)},
         {"$set": clean},
     )
     return get_user_by_id(user_id)

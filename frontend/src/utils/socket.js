@@ -1,9 +1,8 @@
 import { io } from "socket.io-client";
-
-const SOCKET_URL = "http://localhost:8000";
+import { API_HOST } from "../api";
 
 export function createSocket(token) {
-  return io(SOCKET_URL, {
+  return io(API_HOST, {
     auth: { token },
     autoConnect: false,
   });

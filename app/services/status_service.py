@@ -1,6 +1,14 @@
 from datetime import datetime, timedelta
 from bson import ObjectId
+from bson.errors import InvalidId
 from app.db.mongo import statuses_collection, contacts_collection, users_collection
+
+
+def _safe_oid(value: str) -> ObjectId:
+    try:
+        return ObjectId(value)
+    except (InvalidId, TypeError):
+        raise ValueError(f"Invalid ID: {value}")
 
 
 def create_status(user_id: str, status_type: str, content: str | None = None,
@@ -65,7 +73,7 @@ def get_status_feed(user_id: str) -> list[dict]:
         return []
 
     # Fetch user profiles
-    user_oids = [ObjectId(uid) for uid in user_statuses]
+    user_oids = [_safe_oid(uid) for uid in user_statuses]
     users = {str(u["_id"]): u for u in users_collection.find({"_id": {"$in": user_oids}})}
 
     result = []
@@ -88,7 +96,7 @@ def get_status_feed(user_id: str) -> list[dict]:
 
 def mark_status_viewed(status_id: str, viewer_id: str) -> bool:
     result = statuses_collection.update_one(
-        {"_id": ObjectId(status_id)},
+        {"_id": _safe_oid(status_id)},
         {"$addToSet": {"viewed_by": viewer_id}},
     )
     return result.modified_count > 0
@@ -96,7 +104,7 @@ def mark_status_viewed(status_id: str, viewer_id: str) -> bool:
 
 def delete_status(status_id: str, user_id: str) -> bool:
     result = statuses_collection.delete_one({
-        "_id": ObjectId(status_id),
+        "_id": _safe_oid(status_id),
         "user_id": user_id,
     })
     return result.deleted_count > 0

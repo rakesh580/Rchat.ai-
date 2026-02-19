@@ -1,6 +1,14 @@
 from datetime import datetime
 from bson import ObjectId
+from bson.errors import InvalidId
 from app.db.mongo import messages_collection, conversations_collection
+
+
+def _safe_oid(value: str) -> ObjectId:
+    try:
+        return ObjectId(value)
+    except (InvalidId, TypeError):
+        raise ValueError(f"Invalid ID: {value}")
 
 
 def save_message(conversation_id: str, sender_id: str, content: str, message_type: str = "text") -> dict:
@@ -18,7 +26,7 @@ def save_message(conversation_id: str, sender_id: str, content: str, message_typ
 
     # Update conversation's last_message
     conversations_collection.update_one(
-        {"_id": ObjectId(conversation_id)},
+        {"_id": _safe_oid(conversation_id)},
         {"$set": {
             "last_message": {
                 "content": content,

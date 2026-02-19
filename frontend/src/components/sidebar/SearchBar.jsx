@@ -10,6 +10,7 @@ export default function SearchBar({ value, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="search-input"
+        maxLength={100}
       />
     </div>
   );

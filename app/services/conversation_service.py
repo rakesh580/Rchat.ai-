@@ -1,6 +1,14 @@
 from datetime import datetime
 from bson import ObjectId
+from bson.errors import InvalidId
 from app.db.mongo import conversations_collection, messages_collection, users_collection
+
+
+def _safe_oid(value: str) -> ObjectId:
+    try:
+        return ObjectId(value)
+    except (InvalidId, TypeError):
+        raise ValueError(f"Invalid ID: {value}")
 
 
 def get_or_create_direct(user_id: str, other_user_id: str) -> dict:
@@ -56,7 +64,7 @@ def get_user_conversations(user_id: str) -> list[dict]:
         # Resolve participant profiles
         participants = []
         for pid in convo["participants"]:
-            user = users_collection.find_one({"_id": ObjectId(pid)})
+            user = users_collection.find_one({"_id": _safe_oid(pid)})
             if user:
                 user["_id"] = str(user["_id"])
                 participants.append({
@@ -84,7 +92,7 @@ def get_user_conversations(user_id: str) -> list[dict]:
 
 
 def get_conversation_by_id(conversation_id: str) -> dict | None:
-    convo = conversations_collection.find_one({"_id": ObjectId(conversation_id)})
+    convo = conversations_collection.find_one({"_id": _safe_oid(conversation_id)})
     if convo:
         convo["_id"] = str(convo["_id"])
     return convo
@@ -92,14 +100,14 @@ def get_conversation_by_id(conversation_id: str) -> dict | None:
 
 def get_conversation_with_profiles(conversation_id: str) -> dict | None:
     """Get conversation with resolved participant profiles."""
-    convo = conversations_collection.find_one({"_id": ObjectId(conversation_id)})
+    convo = conversations_collection.find_one({"_id": _safe_oid(conversation_id)})
     if not convo:
         return None
     convo["_id"] = str(convo["_id"])
 
     participants = []
     for pid in convo["participants"]:
-        user = users_collection.find_one({"_id": ObjectId(pid)})
+        user = users_collection.find_one({"_id": _safe_oid(pid)})
         if user:
             user["_id"] = str(user["_id"])
             participants.append({
@@ -117,7 +125,7 @@ def get_conversation_with_profiles(conversation_id: str) -> dict | None:
 
 def add_member_to_group(conversation_id: str, user_id: str) -> bool:
     result = conversations_collection.update_one(
-        {"_id": ObjectId(conversation_id), "type": "group"},
+        {"_id": _safe_oid(conversation_id), "type": "group"},
         {"$addToSet": {"participants": user_id}},
     )
     return result.modified_count > 0
@@ -125,7 +133,7 @@ def add_member_to_group(conversation_id: str, user_id: str) -> bool:
 
 def remove_member_from_group(conversation_id: str, user_id: str) -> bool:
     result = conversations_collection.update_one(
-        {"_id": ObjectId(conversation_id), "type": "group"},
+        {"_id": _safe_oid(conversation_id), "type": "group"},
         {
             "$pull": {"participants": user_id, "admins": user_id},
         },

@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { FaTimes } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
-import { api } from "../../api";
-
-const API_BASE = "http://localhost:8000";
+import { api, API_HOST } from "../../api";
 const STATUS_DURATION = 5000; // 5 seconds per status
 
 export default function StatusViewer({ userGroup, onClose, onNextUser }) {
@@ -106,7 +104,7 @@ export default function StatusViewer({ userGroup, onClose, onNextUser }) {
   if (!current) return null;
 
   const avatarSrc = userGroup.avatar_url
-    ? `${API_BASE}${userGroup.avatar_url}`
+    ? `${API_HOST}${userGroup.avatar_url}`
     : null;
   const initials = (userGroup.display_name || userGroup.username || "?")[0].toUpperCase();
 
@@ -176,7 +174,7 @@ export default function StatusViewer({ userGroup, onClose, onNextUser }) {
 
         {current.type === "image" && (
           <div className="status-viewer-media">
-            <img src={`${API_BASE}${current.media_url}`} alt="status" />
+            <img src={`${API_HOST}${current.media_url}`} alt="status" />
             {current.caption && (
               <div className="status-viewer-caption">{current.caption}</div>
             )}
@@ -186,7 +184,7 @@ export default function StatusViewer({ userGroup, onClose, onNextUser }) {
         {current.type === "video" && (
           <div className="status-viewer-media">
             <video
-              src={`${API_BASE}${current.media_url}`}
+              src={`${API_HOST}${current.media_url}`}
               autoPlay
               muted
               playsInline

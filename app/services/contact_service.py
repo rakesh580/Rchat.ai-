@@ -1,7 +1,15 @@
 from datetime import datetime
 from bson import ObjectId
+from bson.errors import InvalidId
 from app.db.mongo import contacts_collection, users_collection
 import re
+
+
+def _safe_oid(value: str) -> ObjectId:
+    try:
+        return ObjectId(value)
+    except (InvalidId, TypeError):
+        raise ValueError(f"Invalid ID: {value}")
 
 
 def add_contact(user_id: str, contact_id: str) -> dict:
@@ -13,7 +21,7 @@ def add_contact(user_id: str, contact_id: str) -> dict:
     result = contacts_collection.insert_one(doc)
     doc["_id"] = str(result.inserted_id)
 
-    contact_user = users_collection.find_one({"_id": ObjectId(contact_id)})
+    contact_user = users_collection.find_one({"_id": _safe_oid(contact_id)})
     if contact_user:
         contact_user["_id"] = str(contact_user["_id"])
     doc["contact"] = contact_user or {}
@@ -52,7 +60,7 @@ def search_users(query: str, exclude_user_id: str) -> list[dict]:
     pattern = re.compile(re.escape(query), re.IGNORECASE)
     cursor = users_collection.find({
         "$and": [
-            {"_id": {"$ne": ObjectId(exclude_user_id)}},
+            {"_id": {"$ne": _safe_oid(exclude_user_id)}},
             {"is_bot": {"$ne": True}},
             {"$or": [
                 {"username": {"$regex": pattern}},

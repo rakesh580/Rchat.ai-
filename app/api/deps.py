@@ -9,7 +9,10 @@ oauth2_scheme = APIKeyHeader(name="Authorization")
 
 def get_current_user(token: str = Depends(oauth2_scheme)):
     if token.lower().startswith("bearer "):
-        token = token.split(" ")[1]
+        token = token.split(" ", 1)[1]
+
+    if not token:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
     payload = decode_access_token(token)
     if not payload:
@@ -19,7 +22,11 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token payload")
 
-    user = get_user_by_id(user_id)
+    try:
+        user = get_user_by_id(user_id)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 

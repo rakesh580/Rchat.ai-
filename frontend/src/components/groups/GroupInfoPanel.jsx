@@ -50,7 +50,7 @@ export default function GroupInfoPanel({ onClose }) {
       setSearchQuery("");
       setSearchResults([]);
     } catch (err) {
-      console.error("Failed to add member:", err);
+      /* failed silently */
     }
   };
 
@@ -63,7 +63,7 @@ export default function GroupInfoPanel({ onClose }) {
       selectConversation(updated);
       await refreshConversations();
     } catch (err) {
-      console.error("Failed to remove member:", err);
+      /* failed silently */
     }
   };
 
@@ -77,7 +77,7 @@ export default function GroupInfoPanel({ onClose }) {
       await refreshConversations();
       onClose();
     } catch (err) {
-      console.error("Failed to leave group:", err);
+      /* failed silently */
     }
   };
 

@@ -65,7 +65,7 @@ export default function Sidebar({ onConversationSelect }) {
       }
       await refreshConversations();
     } catch (err) {
-      console.error("Failed to create conversation:", err);
+      /* failed silently */
     }
   };
 

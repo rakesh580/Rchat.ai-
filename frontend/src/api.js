@@ -1,4 +1,7 @@
-const BASE_URL = "http://localhost:8000/api/v1";
+const API_HOST = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const BASE_URL = `${API_HOST}/api/v1`;
+
+export { API_HOST };
 
 export async function api(endpoint, { method = "GET", body, token } = {}) {
   const headers = { "Content-Type": "application/json" };

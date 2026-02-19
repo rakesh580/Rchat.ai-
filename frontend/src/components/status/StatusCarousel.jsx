@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
 import { FaPlus } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
-import { api } from "../../api";
+import { api, API_HOST } from "../../api";
 import StatusCreator from "./StatusCreator";
 import StatusViewer from "./StatusViewer";
-
-const API_BASE = "http://localhost:8000";
 
 export default function StatusCarousel() {
   const { user, token } = useAuth();
@@ -78,7 +76,7 @@ export default function StatusCarousel() {
   };
 
   const myInitials = (user?.display_name || user?.username || "?")[0].toUpperCase();
-  const myAvatar = user?.avatar_url ? `${API_BASE}${user.avatar_url}` : null;
+  const myAvatar = user?.avatar_url ? `${API_HOST}${user.avatar_url}` : null;
 
   return (
     <>
@@ -105,7 +103,7 @@ export default function StatusCarousel() {
         {/* Contacts' statuses */}
         {feed.map((userGroup, idx) => {
           const avatar = userGroup.avatar_url
-            ? `${API_BASE}${userGroup.avatar_url}`
+            ? `${API_HOST}${userGroup.avatar_url}`
             : null;
           const initials = (userGroup.display_name || userGroup.username || "?")[0].toUpperCase();
           const name = userGroup.display_name || userGroup.username;

@@ -8,7 +8,7 @@ from datetime import datetime
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    cors_allowed_origins="*",
+    cors_allowed_origins=["http://localhost:5173"],
 )
 
 # Track connected users: user_id -> set of session IDs

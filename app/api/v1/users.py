@@ -11,6 +11,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads", "avatars")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 MAX_AVATAR_SIZE = 5 * 1024 * 1024  # 5MB
 
 
@@ -48,7 +49,9 @@ def upload_avatar(
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else "jpg"
+    ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "jpg"
+    if ext not in ALLOWED_IMAGE_EXTS:
+        raise HTTPException(status_code=400, detail="Invalid file extension")
     filename = f"{uuid.uuid4().hex}.{ext}"
     filepath = os.path.join(UPLOAD_DIR, filename)
 

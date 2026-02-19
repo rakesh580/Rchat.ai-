@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pymongo.errors import DuplicateKeyError
 
 from app.api.deps import get_current_user
 from app.services.contact_service import add_contact, remove_contact, get_contacts
@@ -22,7 +23,7 @@ def create_contact(body: dict, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Cannot add yourself")
     try:
         return add_contact(user_id, contact_id)
-    except Exception:
+    except DuplicateKeyError:
         raise HTTPException(status_code=400, detail="Contact already exists")
 
 

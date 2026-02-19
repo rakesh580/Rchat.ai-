@@ -41,6 +41,7 @@ export default function MessageInput() {
         className="message-input"
         placeholder="Type a message..."
         value={text}
+        maxLength={5000}
         onChange={(e) => {
           setText(e.target.value);
           handleTyping();

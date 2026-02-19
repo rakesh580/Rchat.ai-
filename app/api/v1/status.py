@@ -16,7 +16,9 @@ router = APIRouter(prefix="/status", tags=["Status"])
 
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "..", "uploads", "status")
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+ALLOWED_IMAGE_EXTS = {"jpg", "jpeg", "png", "webp", "gif"}
 ALLOWED_VIDEO_TYPES = {"video/mp4", "video/webm", "video/quicktime"}
+ALLOWED_VIDEO_EXTS = {"mp4", "webm", "mov"}
 MAX_IMAGE_SIZE = 10 * 1024 * 1024   # 10MB
 MAX_VIDEO_SIZE = 30 * 1024 * 1024   # 30MB
 
@@ -61,7 +63,10 @@ def post_status(
             raise HTTPException(status_code=400, detail=f"File must be under {max_size // (1024*1024)}MB")
 
         os.makedirs(UPLOAD_DIR, exist_ok=True)
-        ext = file.filename.rsplit(".", 1)[-1] if "." in file.filename else ("jpg" if type == "image" else "mp4")
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ("jpg" if type == "image" else "mp4")
+        allowed_exts = ALLOWED_IMAGE_EXTS if type == "image" else ALLOWED_VIDEO_EXTS
+        if ext not in allowed_exts:
+            raise HTTPException(status_code=400, detail="Invalid file extension")
         filename = f"{uuid.uuid4().hex}.{ext}"
         filepath = os.path.join(UPLOAD_DIR, filename)
 

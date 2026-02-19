@@ -7,18 +7,28 @@ from app.db.init_db import AI_BOT_ID
 BOT_USER_ID = str(AI_BOT_ID)
 
 
+MAX_MESSAGE_LENGTH = 5000
+
+
 @sio.event
 async def message_send(sid, data):
     """Client sends a message. Save it, broadcast to room, trigger AI if needed."""
+    if not isinstance(data, dict):
+        return
+
     session = await sio.get_session(sid)
     user_id = session.get("user_id")
     if not user_id:
         return
 
     conversation_id = data.get("conversation_id")
-    content = data.get("content", "").strip()
+    content = data.get("content", "")
     temp_id = data.get("temp_id")
 
+    if not isinstance(conversation_id, str) or not isinstance(content, str):
+        return
+
+    content = content.strip()[:MAX_MESSAGE_LENGTH]
     if not conversation_id or not content:
         return
 
@@ -76,13 +86,12 @@ async def handle_ai_response(conversation_id: str, user_content: str, user_id: s
             "created_at": ai_msg["created_at"].isoformat(),
         }
         await sio.emit("message:new", ai_payload, room=room)
-    except Exception as e:
-        # Send error as a system message
+    except Exception:
         await sio.emit("message:new", {
             "_id": "",
             "conversation_id": conversation_id,
             "sender_id": BOT_USER_ID,
-            "content": f"Sorry, I encountered an error: {str(e)}",
+            "content": "Sorry, I'm having trouble responding right now. Please try again later.",
             "message_type": "text",
             "status": "sent",
             "read_by": [],
@@ -93,6 +102,9 @@ async def handle_ai_response(conversation_id: str, user_content: str, user_id: s
 @sio.event
 async def message_delivered(sid, data):
     """Client acknowledges message delivery."""
+    if not isinstance(data, dict):
+        return
+
     session = await sio.get_session(sid)
     user_id = session.get("user_id")
     if not user_id:
@@ -100,6 +112,8 @@ async def message_delivered(sid, data):
 
     message_id = data.get("message_id")
     conversation_id = data.get("conversation_id")
+    if not isinstance(message_id, str) or not isinstance(conversation_id, str):
+        return
     if not message_id or not conversation_id:
         return
 
@@ -114,13 +128,16 @@ async def message_delivered(sid, data):
 @sio.event
 async def message_read(sid, data):
     """Client marks all messages in a conversation as read."""
+    if not isinstance(data, dict):
+        return
+
     session = await sio.get_session(sid)
     user_id = session.get("user_id")
     if not user_id:
         return
 
     conversation_id = data.get("conversation_id")
-    if not conversation_id:
+    if not isinstance(conversation_id, str) or not conversation_id:
         return
 
     await asyncio.to_thread(mark_messages_read, conversation_id, user_id)
@@ -135,13 +152,16 @@ async def message_read(sid, data):
 @sio.event
 async def group_created(sid, data):
     """After creating a group, notify members so it appears in their sidebar."""
+    if not isinstance(data, dict):
+        return
+
     session = await sio.get_session(sid)
     user_id = session.get("user_id")
     if not user_id:
         return
 
     conversation_id = data.get("conversation_id")
-    if not conversation_id:
+    if not isinstance(conversation_id, str) or not conversation_id:
         return
 
     convo = await asyncio.to_thread(get_conversation_by_id, conversation_id)
@@ -162,13 +182,16 @@ async def group_created(sid, data):
 @sio.event
 async def typing_start(sid, data):
     """User started typing."""
+    if not isinstance(data, dict):
+        return
+
     session = await sio.get_session(sid)
     user_id = session.get("user_id")
     if not user_id:
         return
 
     conversation_id = data.get("conversation_id")
-    if not conversation_id:
+    if not isinstance(conversation_id, str) or not conversation_id:
         return
 
     room = f"conv:{conversation_id}"
@@ -182,13 +205,16 @@ async def typing_start(sid, data):
 @sio.event
 async def typing_stop(sid, data):
     """User stopped typing."""
+    if not isinstance(data, dict):
+        return
+
     session = await sio.get_session(sid)
     user_id = session.get("user_id")
     if not user_id:
         return
 
     conversation_id = data.get("conversation_id")
-    if not conversation_id:
+    if not isinstance(conversation_id, str) or not conversation_id:
         return
 
     room = f"conv:{conversation_id}"

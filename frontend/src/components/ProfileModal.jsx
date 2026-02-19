@@ -1,9 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { FaTimes, FaCamera } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
-import { api, apiUpload } from "../api";
-
-const API_BASE = "http://localhost:8000";
+import { api, apiUpload, API_HOST } from "../api";
 
 export default function ProfileModal({ onClose }) {
   const { user, token, refreshUser } = useAuth();
@@ -12,13 +10,20 @@ export default function ProfileModal({ onClose }) {
   const [displayName, setDisplayName] = useState(user?.display_name || "");
   const [bio, setBio] = useState(user?.bio || "");
   const [preview, setPreview] = useState(
-    user?.avatar_url ? `${API_BASE}${user.avatar_url}` : null
+    user?.avatar_url ? `${API_HOST}${user.avatar_url}` : null
   );
   const [selectedFile, setSelectedFile] = useState(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const initials = (user?.display_name || user?.username || "?")[0].toUpperCase();
+
+  // Clean up object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -27,6 +32,7 @@ export default function ProfileModal({ onClose }) {
       setError("Image must be under 5MB");
       return;
     }
+    if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
     setSelectedFile(file);
     setPreview(URL.createObjectURL(file));
     setError("");

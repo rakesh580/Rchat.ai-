@@ -1,9 +1,10 @@
 import { useState, useRef } from "react";
 import { FaTimes, FaImage, FaVideo } from "react-icons/fa";
 import { useAuth } from "../../context/AuthContext";
-import { api } from "../../api";
+import { API_HOST } from "../../api";
 
-const API_BASE = "http://localhost:8000/api/v1";
+const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_VIDEO_SIZE = 30 * 1024 * 1024; // 30MB
 
 const BG_COLORS = [
   "#6C5CE7", "#0984E3", "#00B894", "#FDCB6E",
@@ -25,6 +26,12 @@ export default function StatusCreator({ onClose, onDone }) {
   const handleFileChange = (e) => {
     const f = e.target.files[0];
     if (!f) return;
+    const maxSize = tab === "image" ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
+    if (f.size > maxSize) {
+      setError(`File must be under ${maxSize / (1024 * 1024)}MB`);
+      return;
+    }
+    if (preview) URL.revokeObjectURL(preview);
     setFile(f);
     setPreview(URL.createObjectURL(f));
     setError("");
@@ -58,7 +65,7 @@ export default function StatusCreator({ onClose, onDone }) {
         }
       }
 
-      const res = await fetch(`${API_BASE}/status`, {
+      const res = await fetch(`${API_HOST}/api/v1/status`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

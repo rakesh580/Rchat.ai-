@@ -2,9 +2,8 @@ import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FaSun, FaMoon, FaUser } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
+import { API_HOST } from "../api";
 import ProfileModal from "./ProfileModal";
-
-const API_BASE = "http://localhost:8000";
 
 export default function Navbar() {
   const [theme, setTheme] = useState("dark");
@@ -54,7 +53,7 @@ export default function Navbar() {
       ? user.username.charAt(0).toUpperCase()
       : "?";
 
-  const avatarSrc = user?.avatar_url ? `${API_BASE}${user.avatar_url}` : null;
+  const avatarSrc = user?.avatar_url ? `${API_HOST}${user.avatar_url}` : null;
 
   return (
     <>
