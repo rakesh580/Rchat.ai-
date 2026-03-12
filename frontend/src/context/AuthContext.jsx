@@ -1,16 +1,33 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { api } from "../api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [token, setToken] = useState(localStorage.getItem("token"));
+  // Token kept in memory only (never localStorage) to prevent XSS theft
+  const [token, setToken] = useState(null);
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(!!localStorage.getItem("token"));
+  const [loading, setLoading] = useState(true);
+  const initialLoad = useRef(true);
 
+  // On mount, try to restore session via httpOnly cookie
   useEffect(() => {
+    if (initialLoad.current) {
+      initialLoad.current = false;
+      api("/users/me")
+        .then((data) => {
+          setUser(data);
+          setLoading(false);
+        })
+        .catch(() => {
+          setToken(null);
+          setUser(null);
+          setLoading(false);
+        });
+      return;
+    }
+
     if (token) {
-      localStorage.setItem("token", token);
       api("/users/me", { token })
         .then((data) => {
           setUser(data);
@@ -22,25 +39,24 @@ export function AuthProvider({ children }) {
           setLoading(false);
         });
     } else {
-      localStorage.removeItem("token");
       setUser(null);
       setLoading(false);
     }
   }, [token]);
 
   const login = (newToken) => setToken(newToken);
-  const logout = () => {
+  const logout = async () => {
+    try { await api("/auth/logout", { method: "POST", token }); } catch { /* ignore */ }
     setToken(null);
     setUser(null);
   };
   const refreshUser = async () => {
-    if (!token) return;
     try {
       const data = await api("/users/me", { token });
       setUser(data);
     } catch { /* ignore */ }
   };
-  const isAuthenticated = !!token;
+  const isAuthenticated = !!user;
 
   return (
     <AuthContext.Provider value={{ token, user, login, logout, isAuthenticated, loading, refreshUser }}>

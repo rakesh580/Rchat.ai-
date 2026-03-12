@@ -9,6 +9,17 @@ class UserCreate(BaseModel):
     username: str
     password: str
 
+    @field_validator("username")
+    def validate_username(cls, v):
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Username must be at least 3 characters")
+        if len(v) > 30:
+            raise ValueError("Username cannot exceed 30 characters")
+        if not re.match(r"^[a-zA-Z0-9_.-]+$", v):
+            raise ValueError("Username can only contain letters, numbers, underscores, dots, and hyphens")
+        return v
+
     @field_validator("password")
     def validate_password(cls, v):
         if len(v) < 8:

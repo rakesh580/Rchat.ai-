@@ -3,7 +3,7 @@ const COLORS = [
   "#E17055", "#FDCB6E", "#D63031", "#00CEC9",
 ];
 
-export default function Avatar({ name, isOnline, isBot, size = 42, avatarUrl }) {
+export default function Avatar({ name, isOnline, isBot, size = 42, avatarUrl, isAutopilot }) {
   const letter = (name || "?")[0].toUpperCase();
   const colorIndex = name ? name.charCodeAt(0) % COLORS.length : 0;
 
@@ -31,6 +31,7 @@ export default function Avatar({ name, isOnline, isBot, size = 42, avatarUrl }) 
         )}
       </div>
       {isOnline && <span className="avatar-online-dot" />}
+      {isAutopilot && <span className="autopilot-badge" title="Autopilot active">AP</span>}
     </div>
   );
 }

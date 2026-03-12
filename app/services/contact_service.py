@@ -1,79 +1,84 @@
-from datetime import datetime
-from bson import ObjectId
-from bson.errors import InvalidId
-from app.db.mongo import contacts_collection, users_collection
-import re
-
-
-def _safe_oid(value: str) -> ObjectId:
-    try:
-        return ObjectId(value)
-    except (InvalidId, TypeError):
-        raise ValueError(f"Invalid ID: {value}")
+from app.db.postgres import query, query_one, execute_returning, execute
 
 
 def add_contact(user_id: str, contact_id: str) -> dict:
-    doc = {
-        "user_id": user_id,
-        "contact_id": contact_id,
-        "added_at": datetime.utcnow(),
-    }
-    result = contacts_collection.insert_one(doc)
-    doc["_id"] = str(result.inserted_id)
+    doc = execute_returning(
+        """INSERT INTO contacts (user_id, contact_id, added_at)
+           VALUES (%s, %s, NOW()) RETURNING *""",
+        (user_id, contact_id),
+    )
+    doc["_id"] = str(doc.pop("id"))
+    doc["user_id"] = str(doc["user_id"])
+    doc["contact_id"] = str(doc["contact_id"])
 
-    contact_user = users_collection.find_one({"_id": _safe_oid(contact_id)})
+    # Fetch contact user profile
+    contact_user = query_one(
+        "SELECT id, username, display_name, avatar_url, is_online, last_seen, is_bot FROM users WHERE id = %s",
+        (contact_id,),
+    )
     if contact_user:
-        contact_user["_id"] = str(contact_user["_id"])
-    doc["contact"] = contact_user or {}
+        contact_user["_id"] = str(contact_user.pop("id"))
+        doc["contact"] = contact_user
+    else:
+        doc["contact"] = {}
     return doc
 
 
 def remove_contact(user_id: str, contact_id: str) -> bool:
-    result = contacts_collection.delete_one({"user_id": user_id, "contact_id": contact_id})
-    return result.deleted_count > 0
+    rowcount = execute(
+        "DELETE FROM contacts WHERE user_id = %s AND contact_id = %s",
+        (user_id, contact_id),
+    )
+    return rowcount > 0
 
 
 def get_contacts(user_id: str) -> list[dict]:
-    cursor = contacts_collection.find({"user_id": user_id})
+    rows = query(
+        """SELECT c.id, c.user_id, c.contact_id, c.added_at,
+                  u.username, u.display_name, u.avatar_url, u.is_online, u.last_seen, u.is_bot
+           FROM contacts c
+           JOIN users u ON u.id = c.contact_id::uuid
+           WHERE c.user_id = %s""",
+        (user_id,),
+    )
     contacts = []
-    for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        contact_user = users_collection.find_one({"_id": ObjectId(doc["contact_id"])})
-        if contact_user:
-            contact_user["_id"] = str(contact_user["_id"])
-            doc["contact"] = {
-                "_id": contact_user["_id"],
-                "username": contact_user["username"],
-                "display_name": contact_user.get("display_name", contact_user["username"]),
-                "avatar_url": contact_user.get("avatar_url", ""),
-                "is_online": contact_user.get("is_online", False),
-                "last_seen": contact_user.get("last_seen"),
-                "is_bot": contact_user.get("is_bot", False),
-            }
-        else:
-            doc["contact"] = {}
+    for row in rows:
+        doc = {
+            "_id": str(row["id"]),
+            "user_id": str(row["user_id"]),
+            "contact_id": str(row["contact_id"]),
+            "added_at": row["added_at"],
+            "contact": {
+                "_id": str(row["contact_id"]),
+                "username": row["username"],
+                "display_name": row.get("display_name", row["username"]),
+                "avatar_url": row.get("avatar_url", ""),
+                "is_online": row.get("is_online", False),
+                "last_seen": row.get("last_seen"),
+                "is_bot": row.get("is_bot", False),
+            },
+        }
         contacts.append(doc)
     return contacts
 
 
-def search_users(query: str, exclude_user_id: str) -> list[dict]:
-    pattern = re.compile(re.escape(query), re.IGNORECASE)
-    cursor = users_collection.find({
-        "$and": [
-            {"_id": {"$ne": _safe_oid(exclude_user_id)}},
-            {"is_bot": {"$ne": True}},
-            {"$or": [
-                {"username": {"$regex": pattern}},
-                {"email": {"$regex": pattern}},
-            ]},
-        ]
-    }).limit(20)
-
+def search_users(query_str: str, exclude_user_id: str) -> list[dict]:
+    # Escape ILIKE special characters to prevent wildcard abuse
+    escaped = query_str.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    rows = query(
+        """SELECT id, username, display_name, avatar_url, is_online
+           FROM users
+           WHERE id != %s
+           AND is_bot IS NOT TRUE
+           AND (username ILIKE %s OR display_name ILIKE %s)
+           LIMIT 20""",
+        (exclude_user_id, pattern, pattern),
+    )
     results = []
-    for user in cursor:
-        user["_id"] = str(user["_id"])
+    for user in rows:
         results.append({
-            "_id": user["_id"],
+            "_id": str(user["id"]),
             "username": user["username"],
             "display_name": user.get("display_name", user["username"]),
             "avatar_url": user.get("avatar_url", ""),

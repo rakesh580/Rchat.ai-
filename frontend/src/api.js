@@ -1,3 +1,6 @@
+if (!import.meta.env.VITE_API_URL && import.meta.env.PROD) {
+  console.warn("VITE_API_URL is not set — falling back to localhost. Set it for production.");
+}
 const API_HOST = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const BASE_URL = `${API_HOST}/api/v1`;
 
@@ -10,6 +13,7 @@ export async function api(endpoint, { method = "GET", body, token } = {}) {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method,
     headers,
+    credentials: "include",
     body: body ? JSON.stringify(body) : undefined,
   });
 
@@ -33,6 +37,7 @@ export async function apiUpload(endpoint, { file, token } = {}) {
   const res = await fetch(`${BASE_URL}${endpoint}`, {
     method: "POST",
     headers,
+    credentials: "include",
     body: formData,
   });
 

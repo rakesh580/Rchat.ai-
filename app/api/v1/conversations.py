@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.api.deps import get_current_user
+from app.core.rate_limit import limiter
 from app.schemas.conversation import ConversationCreate, GroupMemberAdd
 from app.services.conversation_service import (
     get_or_create_direct,
@@ -12,18 +13,21 @@ from app.services.conversation_service import (
     remove_member_from_group,
 )
 from app.services.message_service import get_messages
+from app.services.user_service import get_user_by_id
 
 router = APIRouter(prefix="/conversations", tags=["Conversations"])
 
 
 @router.get("")
-def list_conversations(current_user=Depends(get_current_user)):
+@limiter.limit("30/minute")
+def list_conversations(request: Request, current_user=Depends(get_current_user)):
     user_id = str(current_user["_id"])
     return get_user_conversations(user_id)
 
 
 @router.post("")
-def create_conversation(body: ConversationCreate, current_user=Depends(get_current_user)):
+@limiter.limit("10/minute")
+def create_conversation(request: Request, body: ConversationCreate, current_user=Depends(get_current_user)):
     user_id = str(current_user["_id"])
 
     if body.type == "direct":
@@ -52,7 +56,9 @@ def get_conversation(conversation_id: str, current_user=Depends(get_current_user
 
 
 @router.get("/{conversation_id}/messages")
+@limiter.limit("60/minute")
 def get_conversation_messages(
+    request: Request,
     conversation_id: str,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
@@ -81,6 +87,11 @@ def add_group_member(
         raise HTTPException(status_code=400, detail="Not a group conversation")
     if user_id not in convo.get("admins", []):
         raise HTTPException(status_code=403, detail="Only admins can add members")
+
+    # Verify the user being added actually exists
+    target_user = get_user_by_id(body.user_id)
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
 
     added = add_member_to_group(conversation_id, body.user_id)
     if not added:

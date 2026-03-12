@@ -1,51 +1,42 @@
-from datetime import datetime
-from bson import ObjectId
-from bson.errors import InvalidId
-from app.db.mongo import users_collection
+from app.db.postgres import query_one, execute_returning, execute
 from app.core.security import hash_password, verify_password
 from app.schemas.user import UserCreate
 
 
-def _safe_oid(value: str) -> ObjectId:
-    """Convert string to ObjectId, raising ValueError on invalid input."""
-    try:
-        return ObjectId(value)
-    except (InvalidId, TypeError):
-        raise ValueError(f"Invalid ID: {value}")
+def get_user_by_id(user_id: str) -> dict | None:
+    row = query_one("SELECT * FROM users WHERE id = %s", (user_id,))
+    if row:
+        row["_id"] = str(row.pop("id"))
+    return row
 
 
-def get_user_by_id(user_id: str):
-    return users_collection.find_one({"_id": _safe_oid(user_id)})
+def get_user_by_email(email: str) -> dict | None:
+    row = query_one("SELECT * FROM users WHERE email = %s", (email,))
+    if row:
+        row["_id"] = str(row.pop("id"))
+    return row
 
 
-def get_user_by_email(email: str):
-    return users_collection.find_one({"email": email})
-
-
-def get_user_by_username(username: str):
-    return users_collection.find_one({"username": username})
+def get_user_by_username(username: str) -> dict | None:
+    row = query_one("SELECT * FROM users WHERE username = %s", (username,))
+    if row:
+        row["_id"] = str(row.pop("id"))
+    return row
 
 
 def create_user(user_in: UserCreate) -> dict:
     hashed_pw = hash_password(user_in.password)
-    doc = {
-        "email": user_in.email,
-        "username": user_in.username,
-        "hashed_password": hashed_pw,
-        "display_name": user_in.username,
-        "avatar_url": "",
-        "bio": "",
-        "is_online": False,
-        "last_seen": datetime.utcnow(),
-        "is_bot": False,
-        "created_at": datetime.utcnow(),
-    }
-    result = users_collection.insert_one(doc)
-    doc["_id"] = str(result.inserted_id)
-    return doc
+    row = execute_returning(
+        """INSERT INTO users (email, username, hashed_password, display_name, bio, is_online, is_bot, created_at)
+           VALUES (%s, %s, %s, %s, '', FALSE, FALSE, NOW())
+           RETURNING *""",
+        (user_in.email, user_in.username, hashed_pw, user_in.username),
+    )
+    row["_id"] = str(row.pop("id"))
+    return row
 
 
-def authenticate_user(username_or_email: str, password: str):
+def authenticate_user(username_or_email: str, password: str) -> dict | None:
     user = get_user_by_email(username_or_email) or get_user_by_username(username_or_email)
     if not user:
         return None
@@ -54,13 +45,18 @@ def authenticate_user(username_or_email: str, password: str):
     return user
 
 
+ALLOWED_PROFILE_COLUMNS = {"display_name", "bio", "avatar_url"}
+
+
 def update_user_profile(user_id: str, updates: dict) -> dict | None:
-    """Update user profile fields (display_name, bio, avatar_url)."""
-    clean = {k: v for k, v in updates.items() if v is not None}
+    clean = {k: v for k, v in updates.items() if v is not None and k in ALLOWED_PROFILE_COLUMNS}
     if not clean:
         return get_user_by_id(user_id)
-    users_collection.update_one(
-        {"_id": _safe_oid(user_id)},
-        {"$set": clean},
+
+    set_clauses = ", ".join(f"{k} = %s" for k in clean)
+    values = list(clean.values()) + [user_id]
+    execute(
+        f"UPDATE users SET {set_clauses} WHERE id = %s",
+        tuple(values),
     )
     return get_user_by_id(user_id)

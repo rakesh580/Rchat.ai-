@@ -1,9 +1,11 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, Request, UploadFile, File, Form, HTTPException
 from typing import Optional
 
 from app.api.deps import get_current_user
+from app.core.rate_limit import limiter
+from app.utils.file_validation import validate_image_magic, validate_video_magic
 from app.services.status_service import (
     create_status,
     get_my_statuses,
@@ -24,7 +26,9 @@ MAX_VIDEO_SIZE = 30 * 1024 * 1024   # 30MB
 
 
 @router.post("")
+@limiter.limit("10/minute")
 def post_status(
+    request: Request,
     type: str = Form(...),
     content: Optional[str] = Form(None),
     caption: Optional[str] = Form(None),
@@ -61,6 +65,12 @@ def post_status(
         contents = file.file.read()
         if len(contents) > max_size:
             raise HTTPException(status_code=400, detail=f"File must be under {max_size // (1024*1024)}MB")
+
+        # Validate file magic numbers
+        if type == "image" and not validate_image_magic(contents):
+            raise HTTPException(status_code=400, detail="File content does not match a valid image format")
+        if type == "video" and not validate_video_magic(contents):
+            raise HTTPException(status_code=400, detail="File content does not match a valid video format")
 
         os.makedirs(UPLOAD_DIR, exist_ok=True)
         ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ("jpg" if type == "image" else "mp4")

@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from passlib.context import CryptContext
-from jose import jwt, JWTError
+import jwt
 
 from app.core.config import settings
 
@@ -24,9 +24,9 @@ def create_access_token(data: dict, expires_delta=None):
     to_encode = data.copy()
 
     if isinstance(expires_delta, timedelta):
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(
+        expire = datetime.now(timezone.utc) + timedelta(
             minutes=expires_delta or settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
@@ -47,5 +47,5 @@ def decode_access_token(token: str):
             algorithms=[settings.JWT_ALGORITHM],
         )
         return payload
-    except JWTError:
+    except Exception:
         return None

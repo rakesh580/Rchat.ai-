@@ -1,11 +1,13 @@
 import os
 import uuid
-from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, Query, Request, UploadFile, File, HTTPException
 
 from app.api.deps import get_current_user
 from app.services.contact_service import search_users
 from app.services.user_service import update_user_profile
 from app.schemas.user import UserProfileUpdate
+from app.core.rate_limit import limiter
+from app.utils.file_validation import validate_image_magic
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -36,7 +38,9 @@ def update_me(body: UserProfileUpdate, current_user=Depends(get_current_user)):
 
 
 @router.post("/me/avatar")
+@limiter.limit("10/minute")
 def upload_avatar(
+    request: Request,
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
 ):
@@ -46,6 +50,9 @@ def upload_avatar(
     contents = file.file.read()
     if len(contents) > MAX_AVATAR_SIZE:
         raise HTTPException(status_code=400, detail="Image must be under 5MB")
+
+    if not validate_image_magic(contents):
+        raise HTTPException(status_code=400, detail="File content does not match a valid image format")
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -75,6 +82,7 @@ def upload_avatar(
 
 
 @router.get("/search")
-def search(q: str = Query(..., min_length=1), current_user=Depends(get_current_user)):
+@limiter.limit("30/minute")
+def search(request: Request, q: str = Query(..., min_length=1), current_user=Depends(get_current_user)):
     user_id = str(current_user["_id"])
     return search_users(q, user_id)

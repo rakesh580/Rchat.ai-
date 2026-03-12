@@ -1,13 +1,16 @@
-import { FaArrowLeft } from "react-icons/fa";
+import { useState, useEffect } from "react";
+import { FaArrowLeft, FaRobot } from "react-icons/fa";
 import Avatar from "../common/Avatar";
 import { useAuth } from "../../context/AuthContext";
 import { useSocket } from "../../context/SocketContext";
 import { useChat } from "../../context/ChatContext";
+import { api } from "../../api";
 
 export default function ChatHeader({ onBack, onGroupInfoToggle }) {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
   const { onlineUsers } = useSocket();
   const { activeConversation, typingUsers } = useChat();
+  const [autopilotStatus, setAutopilotStatus] = useState(null);
 
   if (!activeConversation) return null;
 
@@ -27,6 +30,16 @@ export default function ChatHeader({ onBack, onGroupInfoToggle }) {
     : false;
 
   const isBot = otherParticipant?.is_bot || false;
+
+  // Fetch autopilot status for direct conversations
+  useEffect(() => {
+    setAutopilotStatus(null);
+    if (!isGroup && otherParticipant && !isBot && token) {
+      api(`/autopilot/status/${otherParticipant._id}`, { token })
+        .then((data) => setAutopilotStatus(data))
+        .catch(() => setAutopilotStatus(null));
+    }
+  }, [otherParticipant?._id, isGroup, isBot, token]);
 
   const convTyping = typingUsers[activeConversation._id];
   const someoneTyping = convTyping && convTyping.size > 0;
@@ -63,7 +76,7 @@ export default function ChatHeader({ onBack, onGroupInfoToggle }) {
         className={`chat-header-clickable ${isGroup ? "clickable" : ""}`}
         onClick={handleHeaderClick}
       >
-        <Avatar name={name} isOnline={isOnline} isBot={isBot} size={40} />
+        <Avatar name={name} isOnline={isOnline} isBot={isBot} size={40} isAutopilot={autopilotStatus?.is_autopilot} />
         <div className="chat-header-info">
           <span className="chat-header-name">{name}</span>
           <span
@@ -73,6 +86,16 @@ export default function ChatHeader({ onBack, onGroupInfoToggle }) {
           </span>
         </div>
       </div>
+      {autopilotStatus?.is_autopilot && (
+        <div className="autopilot-banner">
+          <FaRobot size={13} />
+          <span>
+            Autopilot active
+            {autopilotStatus.away_message && ` — ${autopilotStatus.away_message}`}
+            {autopilotStatus.expected_return_date && ` (back ${new Date(autopilotStatus.expected_return_date).toLocaleDateString()})`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,11 +1,11 @@
 from groq import Groq
 from app.core.config import settings
-from app.db.mongo import messages_collection
+from app.db.postgres import query
 from app.services.message_service import save_message
-from app.db.init_db import AI_BOT_ID
+
+AI_BOT_USER_ID = "00000000-0000-0000-0000-000000000001"
 
 groq_client = Groq(api_key=settings.GROQ_API_KEY)
-BOT_USER_ID = str(AI_BOT_ID)
 
 SYSTEM_PROMPT = (
     "You are Rchat.ai, a helpful and friendly AI assistant. "
@@ -16,13 +16,16 @@ SYSTEM_PROMPT = (
 def get_ai_reply(conversation_id: str, user_content: str) -> dict:
     """Build context from conversation history and call Groq."""
     # Get last 20 messages for context
-    cursor = messages_collection.find(
-        {"conversation_id": conversation_id}
-    ).sort("created_at", -1).limit(20)
+    rows = query(
+        """SELECT sender_id, content FROM messages
+           WHERE conversation_id = %s
+           ORDER BY created_at DESC LIMIT 20""",
+        (conversation_id,),
+    )
 
     past_messages = []
-    for doc in cursor:
-        role = "assistant" if doc["sender_id"] == BOT_USER_ID else "user"
+    for doc in rows:
+        role = "assistant" if str(doc["sender_id"]) == AI_BOT_USER_ID else "user"
         past_messages.append({"role": role, "content": doc["content"]})
     past_messages.reverse()
 
@@ -38,4 +41,4 @@ def get_ai_reply(conversation_id: str, user_content: str) -> dict:
     )
 
     reply = response.choices[0].message.content
-    return save_message(conversation_id, BOT_USER_ID, reply)
+    return save_message(conversation_id, AI_BOT_USER_ID, reply)

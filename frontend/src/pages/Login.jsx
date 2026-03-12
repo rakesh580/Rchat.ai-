@@ -65,6 +65,8 @@ export default function Login() {
               placeholder="Enter your email or username"
               value={emailOrUsername}
               onChange={(e) => setEmailOrUsername(e.target.value)}
+              maxLength={100}
+              required
             />
           </div>
 
@@ -76,6 +78,8 @@ export default function Login() {
               placeholder="Enter password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              maxLength={128}
+              required
             />
           </div>
 

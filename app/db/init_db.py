@@ -1,51 +1,22 @@
-from datetime import datetime
-from bson import ObjectId
-from app.db.mongo import (
-    users_collection,
-    conversations_collection,
-    messages_collection,
-    contacts_collection,
-    statuses_collection,
-)
+from app.db.postgres import query_one
 
-AI_BOT_ID = ObjectId("000000000000000000000001")
+AI_BOT_ID = "00000000-0000-0000-0000-000000000001"
 
 
 def init_db() -> None:
-    """Create MongoDB indexes and seed the AI bot user."""
+    """Verify database connection and AI bot user exists."""
+    # Test connection
+    row = query_one("SELECT 1 AS ok")
+    if not row:
+        raise RuntimeError("Database connection failed")
 
-    # Users indexes
-    users_collection.create_index("email", unique=True)
-    users_collection.create_index("username", unique=True)
-    users_collection.create_index("is_bot")
-
-    # Conversations indexes
-    conversations_collection.create_index("participants")
-    conversations_collection.create_index([("updated_at", -1)])
-
-    # Messages indexes
-    messages_collection.create_index([("conversation_id", 1), ("created_at", 1)])
-
-    # Contacts indexes
-    contacts_collection.create_index(
-        [("user_id", 1), ("contact_id", 1)], unique=True
-    )
-
-    # Statuses indexes
-    statuses_collection.create_index([("user_id", 1), ("created_at", -1)])
-    statuses_collection.create_index("expires_at", expireAfterSeconds=0)  # TTL auto-delete
-
-    # Seed AI bot user if not present
-    if not users_collection.find_one({"_id": AI_BOT_ID}):
-        users_collection.insert_one({
-            "_id": AI_BOT_ID,
-            "email": "ai@rchat.ai",
-            "username": "rchat_ai",
-            "display_name": "Rchat.ai Bot",
-            "hashed_password": "",
-            "avatar_url": "",
-            "is_online": True,
-            "last_seen": datetime.utcnow(),
-            "is_bot": True,
-            "created_at": datetime.utcnow(),
-        })
+    # Verify AI bot exists
+    bot = query_one("SELECT id FROM users WHERE id = %s", (AI_BOT_ID,))
+    if not bot:
+        from app.db.postgres import execute
+        execute(
+            """INSERT INTO users (id, email, username, display_name, hashed_password, is_online, is_bot, created_at)
+               VALUES (%s, 'ai@rchat.ai', 'rchat_ai', 'Rchat.ai Bot', '', TRUE, TRUE, NOW())
+               ON CONFLICT (id) DO NOTHING""",
+            (AI_BOT_ID,),
+        )

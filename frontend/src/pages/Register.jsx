@@ -19,6 +19,27 @@ export default function Register() {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    if (username.length < 3 || username.length > 30) {
+      setError("Username must be between 3 and 30 characters");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+      setError("Username can only contain letters, numbers, and underscores");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
     setLoading(true);
     try {
       await api("/auth/register", {
@@ -51,6 +72,8 @@ export default function Register() {
               placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              maxLength={100}
+              required
             />
           </div>
 
@@ -62,6 +85,8 @@ export default function Register() {
               placeholder="Choose a username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              maxLength={30}
+              required
             />
           </div>
 
@@ -70,9 +95,12 @@ export default function Register() {
             <input
               type="password"
               className="form-control"
-              placeholder="Create a password"
+              placeholder="Create a password (min 8 characters)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              minLength={8}
+              maxLength={128}
+              required
             />
           </div>
 

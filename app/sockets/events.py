@@ -1,13 +1,34 @@
 import asyncio
+import logging
+import time
+from collections import defaultdict
 from app.sockets.server import sio, connected_users
+
+logger = logging.getLogger(__name__)
 from app.services.message_service import save_message, mark_messages_read
 from app.services.conversation_service import get_conversation_by_id
 from app.db.init_db import AI_BOT_ID
 
 BOT_USER_ID = str(AI_BOT_ID)
 
-
 MAX_MESSAGE_LENGTH = 5000
+
+# Per-user socket rate limiting: max 30 messages per 60 seconds
+_MSG_RATE_LIMIT = 30
+_MSG_RATE_WINDOW = 60
+_msg_timestamps: dict[str, list[float]] = defaultdict(list)
+
+
+def _is_rate_limited(user_id: str) -> bool:
+    """Check if a user has exceeded the socket message rate limit."""
+    now = time.time()
+    window_start = now - _MSG_RATE_WINDOW
+    # Clean old entries
+    _msg_timestamps[user_id] = [t for t in _msg_timestamps[user_id] if t > window_start]
+    if len(_msg_timestamps[user_id]) >= _MSG_RATE_LIMIT:
+        return True
+    _msg_timestamps[user_id].append(now)
+    return False
 
 
 @sio.event
@@ -19,6 +40,11 @@ async def message_send(sid, data):
     session = await sio.get_session(sid)
     user_id = session.get("user_id")
     if not user_id:
+        return
+
+    # Socket-level rate limiting
+    if _is_rate_limited(user_id):
+        await sio.emit("error", {"detail": "Rate limit exceeded. Slow down."}, to=sid)
         return
 
     conversation_id = data.get("conversation_id")
@@ -61,6 +87,10 @@ async def message_send(sid, data):
     }
     await sio.emit("message:new", msg_payload, room=room, skip_sid=sid)
 
+    # Check autopilot for participants (skip auto-reply messages to prevent loops)
+    if not content.startswith("[Auto-reply via Autopilot]") and not content.startswith("[Forwarded - Urgent]"):
+        await handle_autopilot_check(conversation_id, user_id, msg, room, convo)
+
     # Check if conversation involves the AI bot
     if BOT_USER_ID in convo["participants"]:
         await handle_ai_response(conversation_id, content, user_id, room)
@@ -86,7 +116,8 @@ async def handle_ai_response(conversation_id: str, user_content: str, user_id: s
             "created_at": ai_msg["created_at"].isoformat(),
         }
         await sio.emit("message:new", ai_payload, room=room)
-    except Exception:
+    except Exception as exc:
+        logger.error("AI response failed for conversation %s: %s", conversation_id, exc)
         await sio.emit("message:new", {
             "_id": "",
             "conversation_id": conversation_id,
@@ -97,6 +128,90 @@ async def handle_ai_response(conversation_id: str, user_content: str, user_id: s
             "read_by": [],
             "created_at": "",
         }, room=room)
+
+
+async def handle_autopilot_check(conversation_id: str, sender_id: str, msg: dict, room: str, convo: dict):
+    """Check if any recipient has autopilot enabled and process accordingly."""
+    from app.services.autopilot_service import (
+        is_user_on_autopilot, get_autopilot_config, classify_message,
+        log_activity, forward_to_backup,
+    )
+
+    for participant_id in convo["participants"]:
+        if participant_id == sender_id:
+            continue
+
+        is_on = await asyncio.to_thread(is_user_on_autopilot, participant_id)
+        if not is_on:
+            continue
+
+        config = await asyncio.to_thread(get_autopilot_config, participant_id)
+        if not config:
+            continue
+
+        try:
+            classification = await asyncio.to_thread(
+                classify_message, conversation_id, sender_id, msg["content"], participant_id
+            )
+
+            category = classification["category"]
+            action_taken = "logged"
+
+            # Urgent: forward to backup person
+            if category == "urgent" and config.get("backup_person_id"):
+                await asyncio.to_thread(
+                    forward_to_backup,
+                    participant_id,
+                    config["backup_person_id"],
+                    sender_id,
+                    conversation_id,
+                    msg["content"],
+                )
+                action_taken = "forwarded"
+                backup_id = config["backup_person_id"]
+                if backup_id in connected_users:
+                    for backup_sid in connected_users[backup_id]:
+                        await sio.emit("autopilot:forwarded", {
+                            "original_sender_id": sender_id,
+                            "content": msg["content"],
+                            "conversation_id": conversation_id,
+                        }, to=backup_sid)
+
+            # Auto-respond if enabled
+            if (classification.get("should_auto_respond")
+                    and config.get("auto_respond_enabled")
+                    and classification.get("auto_response")):
+                auto_content = f"[Auto-reply via Autopilot] {classification['auto_response']}"
+                auto_msg = await asyncio.to_thread(
+                    save_message, conversation_id, participant_id, auto_content
+                )
+                auto_payload = {
+                    "_id": auto_msg["_id"],
+                    "conversation_id": auto_msg["conversation_id"],
+                    "sender_id": auto_msg["sender_id"],
+                    "content": auto_msg["content"],
+                    "message_type": auto_msg["message_type"],
+                    "status": auto_msg["status"],
+                    "read_by": auto_msg["read_by"],
+                    "created_at": auto_msg["created_at"].isoformat(),
+                    "is_autopilot_reply": True,
+                }
+                await sio.emit("message:new", auto_payload, room=room)
+                action_taken = "auto_responded"
+            elif category == "action_needed":
+                action_taken = "queued"
+
+            # Log activity
+            await asyncio.to_thread(
+                log_activity,
+                participant_id, conversation_id, msg["_id"], sender_id,
+                category, action_taken,
+                classification.get("auto_response"),
+                classification.get("deadline"),
+            )
+
+        except Exception as exc:
+            logger.error("Autopilot processing failed for user %s: %s", participant_id, exc)
 
 
 @sio.event

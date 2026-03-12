@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { FaSun, FaMoon, FaUser } from "react-icons/fa";
+import { FaSun, FaMoon, FaUser, FaRobot } from "react-icons/fa";
 import { useAuth } from "../context/AuthContext";
 import { API_HOST } from "../api";
 import ProfileModal from "./ProfileModal";
+import AutopilotModal from "./AutopilotModal";
 
 export default function Navbar() {
   const [theme, setTheme] = useState("dark");
@@ -11,6 +12,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showAutopilot, setShowAutopilot] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -45,6 +47,11 @@ export default function Navbar() {
   const handleOpenProfile = () => {
     setShowDropdown(false);
     setShowProfile(true);
+  };
+
+  const handleOpenAutopilot = () => {
+    setShowDropdown(false);
+    setShowAutopilot(true);
   };
 
   const initials = user?.display_name
@@ -121,6 +128,10 @@ export default function Navbar() {
                     <FaUser size={14} style={{ opacity: 0.6 }} />
                     My Profile
                   </button>
+                  <button className="profile-dropdown-item" onClick={handleOpenAutopilot}>
+                    <FaRobot size={14} style={{ opacity: 0.6 }} />
+                    Autopilot
+                  </button>
                   <div className="profile-dropdown-divider" />
                   <button className="profile-dropdown-item danger" onClick={handleLogout}>
                     Logout
@@ -133,6 +144,7 @@ export default function Navbar() {
       </nav>
 
       {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
+      {showAutopilot && <AutopilotModal onClose={() => setShowAutopilot(false)} />}
     </>
   );
 }

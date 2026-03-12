@@ -20,6 +20,7 @@ export function ChatProvider({ children }) {
   const [typingUsers, setTypingUsers] = useState({});
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [showBriefing, setShowBriefing] = useState(false);
 
   // Load conversations
   useEffect(() => {
@@ -180,6 +181,10 @@ export function ChatProvider({ children }) {
       }
     };
 
+    const handleBriefingReady = () => {
+      setShowBriefing(true);
+    };
+
     socket.on("message:new", handleNewMessage);
     socket.on("message:sent", handleMessageSent);
     socket.on("typing:indicator", handleTypingIndicator);
@@ -187,6 +192,7 @@ export function ChatProvider({ children }) {
     socket.on("message:read_receipt", handleReadReceipt);
     socket.on("message:status", handleMessageStatus);
     socket.on("conversation:new", handleConversationNew);
+    socket.on("autopilot:briefing_ready", handleBriefingReady);
 
     return () => {
       socket.off("message:new", handleNewMessage);
@@ -196,6 +202,7 @@ export function ChatProvider({ children }) {
       socket.off("message:read_receipt", handleReadReceipt);
       socket.off("message:status", handleMessageStatus);
       socket.off("conversation:new", handleConversationNew);
+      socket.off("autopilot:briefing_ready", handleBriefingReady);
     };
   }, [socket, activeConversation?._id, user?._id, token]);
 
@@ -283,6 +290,8 @@ export function ChatProvider({ children }) {
         selectConversation,
         setConversations,
         refreshConversations,
+        showBriefing,
+        setShowBriefing,
       }}
     >
       {children}

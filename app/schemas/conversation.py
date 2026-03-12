@@ -1,12 +1,19 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
-from typing import Optional
+from typing import Literal, Optional
 
 
 class ConversationCreate(BaseModel):
-    type: str = "direct"  # "direct" or "group"
-    participant_ids: list[str]
-    group_name: Optional[str] = None
+    type: Literal["direct", "group"] = "direct"
+    participant_ids: list[str] = Field(..., min_length=1, max_length=50)
+    group_name: Optional[str] = Field(None, max_length=100)
+
+    @field_validator("participant_ids")
+    @classmethod
+    def validate_participant_ids(cls, v):
+        if len(v) != len(set(v)):
+            raise ValueError("Duplicate participant IDs")
+        return v
 
 
 class GroupMemberAdd(BaseModel):
