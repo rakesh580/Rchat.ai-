@@ -1,7 +1,5 @@
-if (!import.meta.env.VITE_API_URL && import.meta.env.PROD) {
-  console.warn("VITE_API_URL is not set — falling back to localhost. Set it for production.");
-}
-const API_HOST = import.meta.env.VITE_API_URL || "http://localhost:8000";
+// In production (HF Spaces), backend is same origin; in dev, use localhost:8000
+const API_HOST = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? "" : "http://localhost:8000");
 const BASE_URL = `${API_HOST}/api/v1`;
 
 export { API_HOST };

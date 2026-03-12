@@ -33,9 +33,9 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response: Response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws: wss:"
+        response.headers["Content-Security-Policy"] = "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' ws: wss:; frame-ancestors 'self' https://huggingface.co https://*.hf.space"
         if settings.COOKIE_SECURE:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response
@@ -53,17 +53,32 @@ def on_startup():
     os.makedirs(os.path.join(base, "status"), exist_ok=True)
 
 
-@fastapi_app.get("/")
-def root():
-    return {"msg": "Rchat.ai backend running"}
-
-
 fastapi_app.include_router(api_router, prefix="/api/v1")
 
 # Serve uploaded files (avatars, status media)
 uploads_path = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(uploads_path, exist_ok=True)
 fastapi_app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
+
+# Serve frontend build if it exists (production / HF Spaces deployment)
+_frontend_dist = os.path.join(os.path.dirname(__file__), "..", "frontend", "dist")
+if os.path.isdir(_frontend_dist):
+    from starlette.responses import FileResponse
+
+    # Serve static assets (JS, CSS, images)
+    fastapi_app.mount("/assets", StaticFiles(directory=os.path.join(_frontend_dist, "assets")), name="frontend-assets")
+
+    # Catch-all: serve index.html for SPA client-side routing
+    @fastapi_app.get("/{path:path}")
+    async def serve_spa(path: str):
+        file_path = os.path.join(_frontend_dist, path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(_frontend_dist, "index.html"))
+else:
+    @fastapi_app.get("/")
+    def root():
+        return {"msg": "Rchat.ai backend running (no frontend build found)"}
 
 # Combine: Socket.IO handles /socket.io/*, FastAPI handles everything else
 app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
