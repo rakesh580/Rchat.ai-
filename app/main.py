@@ -1,7 +1,10 @@
 import os
+import logging
+import traceback
 import socketio
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -14,9 +17,23 @@ from app.core.rate_limit import limiter
 from app.core.config import settings
 import app.sockets.events  # noqa: F401 — registers event handlers
 
+logger = logging.getLogger("rchat")
+logging.basicConfig(level=logging.INFO)
+
 fastapi_app = FastAPI(title="Rchat.ai")
 fastapi_app.state.limiter = limiter
 fastapi_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@fastapi_app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Return JSON for ALL unhandled exceptions — never a plain text 500."""
+    tb = traceback.format_exc()
+    logger.error("Unhandled %s on %s %s: %s\n%s", type(exc).__name__, request.method, request.url.path, exc, tb)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"{type(exc).__name__}: {str(exc)}"},
+    )
 
 cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
 

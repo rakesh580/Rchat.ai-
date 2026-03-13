@@ -1,5 +1,6 @@
 # app/core/config.py
 import os
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -17,15 +18,18 @@ class Settings(BaseSettings):
     # Groq AI
     GROQ_API_KEY: str = ""
 
-    @property
-    def database_url_clean(self) -> str:
-        return self.DATABASE_URL.strip()
-
     # CORS — comma-separated origins, defaults to localhost for dev
     CORS_ORIGINS: str = "http://localhost:5173"
 
     # Cookie secure flag — auto-detected from environment
     COOKIE_SECURE: bool = False
+
+    # Strip trailing whitespace/newlines from all string secrets
+    # (HF Spaces and other platforms often inject trailing \n)
+    @field_validator("JWT_SECRET_KEY", "DATABASE_URL", "GROQ_API_KEY", "CORS_ORIGINS", mode="before")
+    @classmethod
+    def strip_whitespace(cls, v):
+        return v.strip() if isinstance(v, str) else v
 
     class Config:
         env_file = ".env"
