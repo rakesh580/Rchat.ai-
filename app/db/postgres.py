@@ -66,6 +66,11 @@ def _put_conn(conn):
         pass
 
 
+# Public aliases — used by services that need manual transaction control
+get_conn = _safe_conn
+put_conn = _put_conn
+
+
 def query(sql: str, params: tuple = None) -> list[dict]:
     """Execute a SELECT and return list of dicts."""
     conn = _safe_conn()
