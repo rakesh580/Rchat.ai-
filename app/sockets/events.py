@@ -89,7 +89,10 @@ async def message_send(sid, data):
 
     # Check autopilot for participants (skip auto-reply messages to prevent loops)
     if not content.startswith("[Auto-reply via Autopilot]") and not content.startswith("[Forwarded - Urgent]"):
-        await handle_autopilot_check(conversation_id, user_id, msg, room, convo)
+        try:
+            await handle_autopilot_check(conversation_id, user_id, msg, room, convo)
+        except Exception:
+            pass  # Graceful if autopilot tables don't exist yet
 
     # Check if conversation involves the AI bot
     if BOT_USER_ID in convo["participants"]:

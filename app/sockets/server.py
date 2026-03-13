@@ -82,11 +82,14 @@ async def connect(sid, environ, auth):
     # Broadcast online status
     await sio.emit("user:online", {"user_id": user_id})
 
-    # Check if user has pending autopilot briefing
-    from app.services.autopilot_service import has_unresolved_activity
-    has_briefing = await asyncio.to_thread(has_unresolved_activity, user_id)
-    if has_briefing:
-        await sio.emit("autopilot:briefing_ready", {}, to=sid)
+    # Check if user has pending autopilot briefing (graceful if tables don't exist yet)
+    try:
+        from app.services.autopilot_service import has_unresolved_activity
+        has_briefing = await asyncio.to_thread(has_unresolved_activity, user_id)
+        if has_briefing:
+            await sio.emit("autopilot:briefing_ready", {}, to=sid)
+    except Exception:
+        pass
 
 
 @sio.event
