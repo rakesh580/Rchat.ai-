@@ -7,7 +7,7 @@ from app.core.config import settings
 _pool = psycopg2.pool.ThreadedConnectionPool(
     minconn=2,
     maxconn=10,
-    dsn=settings.DATABASE_URL,
+    dsn=settings.DATABASE_URL.strip(),
 )
 
 

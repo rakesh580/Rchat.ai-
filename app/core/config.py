@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     # Groq AI
     GROQ_API_KEY: str = ""
 
+    @property
+    def database_url_clean(self) -> str:
+        return self.DATABASE_URL.strip()
+
     # CORS — comma-separated origins, defaults to localhost for dev
     CORS_ORIGINS: str = "http://localhost:5173"
 
