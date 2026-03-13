@@ -8,6 +8,11 @@ RUN npm run build
 
 # ---- Stage 2: Python Backend + Serve Frontend ----
 FROM python:3.12-slim
+
+# HF Spaces requires non-root user with uid 1000
+RUN useradd -m -u 1000 user
+ENV PATH="/home/user/.local/bin:$PATH"
+
 WORKDIR /app
 
 # Install system deps for psycopg2
@@ -16,17 +21,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-COPY requirements.txt .
+COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend code
-COPY app/ ./app/
+COPY --chown=user app/ ./app/
 
 # Copy built frontend from stage 1
-COPY --from=frontend-build /app/frontend/dist ./frontend/dist
+COPY --from=frontend-build --chown=user /app/frontend/dist ./frontend/dist
 
-# Create uploads directory
-RUN mkdir -p uploads/avatars uploads/status
+# Create uploads directory with user permissions
+RUN mkdir -p uploads/avatars uploads/status && chown -R user:user uploads
+
+# Switch to non-root user
+USER user
 
 # HF Spaces runs on port 7860
 EXPOSE 7860
