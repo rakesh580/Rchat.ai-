@@ -15,7 +15,13 @@ export async function api(endpoint, { method = "GET", body, token } = {}) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    if (!res.ok) throw new Error(`Server error (${res.status})`);
+    throw new Error("Invalid response from server");
+  }
 
   if (!res.ok) {
     const message = data.detail || "Something went wrong";
@@ -39,7 +45,13 @@ export async function apiUpload(endpoint, { file, token } = {}) {
     body: formData,
   });
 
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+    throw new Error("Invalid response from server");
+  }
 
   if (!res.ok) {
     const message = data.detail || "Upload failed";
