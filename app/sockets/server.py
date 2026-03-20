@@ -9,10 +9,16 @@ from app.core.config import settings as app_settings
 
 _cors_origins = [o.strip() for o in app_settings.CORS_ORIGINS.split(",") if o.strip()]
 
-# Always use explicit CORS origins — never wildcard, even in production.
-# Socket.IO operates independently of FastAPI CORS middleware.
+# In production (HF Spaces etc.), the frontend is served from the same origin
+# as the backend. Allow "*" so Socket.IO doesn't reject same-origin requests
+# when the exact origin isn't listed in CORS_ORIGINS.
 import os
-_sio_cors = _cors_origins if _cors_origins else []
+_env = os.getenv("ENV", "").lower()
+if _env == "production" or os.getenv("SPACE_ID"):
+    # HF Spaces / production: allow all origins (same-origin + HF proxy)
+    _sio_cors = "*"
+else:
+    _sio_cors = _cors_origins if _cors_origins else []
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
