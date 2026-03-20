@@ -7,7 +7,9 @@ export default function ProtectedRoute({ children }) {
   if (loading) {
     return (
       <div className="full-center">
-        <div className="text-center" style={{ opacity: 0.5 }}>Loading...</div>
+        <div className="app-spinner">
+          <div className="app-spinner-ring" />
+        </div>
       </div>
     );
   }

@@ -97,12 +97,14 @@ export default function Navbar() {
                 className="profile-trigger"
                 onClick={() => setShowDropdown(!showDropdown)}
                 title="Profile"
+                style={{ position: "relative" }}
               >
                 {avatarSrc ? (
                   <img src={avatarSrc} alt="avatar" />
                 ) : (
                   initials
                 )}
+                <span className="navbar-online-dot" title="Online" />
               </div>
 
               {showDropdown && (
