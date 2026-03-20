@@ -28,7 +28,8 @@ lerna-debug.log*
 
 # Env files
 .env
-.env.* 
+.env.*
+!.env.example
 
 # Editor files
 .vscode/
@@ -39,6 +40,9 @@ lerna-debug.log*
 *.swn
 *.sublime-project
 *.sublime-workspace
+
+# Uploaded files
+uploads/
 
 # System files
 Thumbs.db
