@@ -15,6 +15,9 @@ ENV PATH="/home/user/.local/bin:$PATH"
 
 WORKDIR /app
 
+# Create uploads directory as root, then chown to user
+RUN mkdir -p uploads/avatars uploads/status && chown -R 1000:1000 /app
+
 # Install system deps for psycopg2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc && \
@@ -32,9 +35,6 @@ COPY --chown=user app/ ./app/
 
 # Copy built frontend from stage 1
 COPY --from=frontend-build --chown=user /app/frontend/dist ./frontend/dist
-
-# Create uploads directory with user permissions
-RUN mkdir -p uploads/avatars uploads/status
 
 # HF Spaces runs on port 7860
 EXPOSE 7860
