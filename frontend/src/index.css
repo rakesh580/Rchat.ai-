@@ -10,8 +10,17 @@ body, html, #root {
 
 /* ===== LIGHT THEME ===== */
 .light-theme {
-  background: #F8F9FC !important;
-  color: #1A1D23 !important;
+  --bg: #F8F9FC;
+  --surface: #FFFFFF;
+  --text: #1A1D23;
+  --text-muted: #6B7280;
+  --muted: #6B7280;
+  --accent: #6C5CE7;
+  --border: #E5E7EB;
+  --input-bg: #F3F4F6;
+  --sidebar-bg: #FFFFFF;
+  background: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 .light-theme .login-card {
@@ -22,8 +31,17 @@ body, html, #root {
 
 /* ===== DARK THEME ===== */
 .dark-theme {
-  background: #0D1117 !important;
-  color: #E6EDF3 !important;
+  --bg: #0D1117;
+  --surface: #161B22;
+  --text: #E6EDF3;
+  --text-muted: #8B949E;
+  --muted: #8B949E;
+  --accent: #6C5CE7;
+  --border: rgba(255, 255, 255, 0.08);
+  --input-bg: #1C2333;
+  --sidebar-bg: #161B22;
+  background: var(--bg) !important;
+  color: var(--text) !important;
 }
 
 .dark-theme .login-card {
