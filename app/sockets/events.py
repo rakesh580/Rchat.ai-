@@ -19,6 +19,14 @@ _MSG_RATE_WINDOW = 60
 _msg_timestamps: dict[str, list[float]] = defaultdict(list)
 
 
+async def _verify_participant(user_id: str, conversation_id: str) -> bool:
+    """Verify user is a participant in the conversation."""
+    convo = await asyncio.to_thread(get_conversation_by_id, conversation_id)
+    if not convo:
+        return False
+    return user_id in convo["participants"]
+
+
 def _is_rate_limited(user_id: str) -> bool:
     """Check if a user has exceeded the socket message rate limit."""
     now = time.time()
@@ -63,7 +71,7 @@ async def message_send(sid, data):
     if not convo or user_id not in convo["participants"]:
         return
 
-    # Save message to MongoDB
+    # Save message to PostgreSQL
     msg = await asyncio.to_thread(save_message, conversation_id, user_id, content)
 
     # Confirm to sender
@@ -134,11 +142,13 @@ async def handle_ai_response(conversation_id: str, user_content: str, user_id: s
 
 
 async def handle_autopilot_check(conversation_id: str, sender_id: str, msg: dict, room: str, convo: dict):
-    """Check if any recipient has autopilot enabled and process accordingly."""
-    from app.services.autopilot_service import (
-        is_user_on_autopilot, get_autopilot_config, classify_message,
-        log_activity, forward_to_backup,
-    )
+    """Check if any recipient has autopilot enabled and run the LangGraph pipeline."""
+    from app.services.autopilot_service import is_user_on_autopilot
+    from app.services.autopilot import build_autopilot_graph
+
+    # Build socket notify helper for graph nodes to emit events
+    async def socket_notify(event: str, payload: dict, target_room: str) -> None:
+        await sio.emit(event, payload, room=target_room)
 
     for participant_id in convo["participants"]:
         if participant_id == sender_id:
@@ -148,73 +158,26 @@ async def handle_autopilot_check(conversation_id: str, sender_id: str, msg: dict
         if not is_on:
             continue
 
-        config = await asyncio.to_thread(get_autopilot_config, participant_id)
-        if not config:
-            continue
-
         try:
-            classification = await asyncio.to_thread(
-                classify_message, conversation_id, sender_id, msg["content"], participant_id
-            )
+            graph = build_autopilot_graph(socket_notify_fn=socket_notify)
 
-            category = classification["category"]
-            action_taken = "logged"
+            initial_state = {
+                "conversation_id": conversation_id,
+                "sender_id": sender_id,
+                "raw_content": msg["content"],
+                "autopilot_user_id": participant_id,
+                "_message_id": msg["_id"],
+            }
 
-            # Urgent: forward to backup person
-            if category == "urgent" and config.get("backup_person_id"):
-                await asyncio.to_thread(
-                    forward_to_backup,
-                    participant_id,
-                    config["backup_person_id"],
-                    sender_id,
-                    conversation_id,
-                    msg["content"],
-                )
-                action_taken = "forwarded"
-                backup_id = config["backup_person_id"]
-                if backup_id in connected_users:
-                    for backup_sid in connected_users[backup_id]:
-                        await sio.emit("autopilot:forwarded", {
-                            "original_sender_id": sender_id,
-                            "content": msg["content"],
-                            "conversation_id": conversation_id,
-                        }, to=backup_sid)
+            # Run graph synchronously in thread pool (nodes are sync)
+            await asyncio.to_thread(graph.invoke, initial_state)
 
-            # Auto-respond if enabled
-            if (classification.get("should_auto_respond")
-                    and config.get("auto_respond_enabled")
-                    and classification.get("auto_response")):
-                auto_content = f"[Auto-reply via Autopilot] {classification['auto_response']}"
-                auto_msg = await asyncio.to_thread(
-                    save_message, conversation_id, participant_id, auto_content
-                )
-                auto_payload = {
-                    "_id": auto_msg["_id"],
-                    "conversation_id": auto_msg["conversation_id"],
-                    "sender_id": auto_msg["sender_id"],
-                    "content": auto_msg["content"],
-                    "message_type": auto_msg["message_type"],
-                    "status": auto_msg["status"],
-                    "read_by": auto_msg["read_by"],
-                    "created_at": auto_msg["created_at"].isoformat(),
-                    "is_autopilot_reply": True,
-                }
-                await sio.emit("message:new", auto_payload, room=room)
-                action_taken = "auto_responded"
-            elif category == "action_needed":
-                action_taken = "queued"
-
-            # Log activity
-            await asyncio.to_thread(
-                log_activity,
-                participant_id, conversation_id, msg["_id"], sender_id,
-                category, action_taken,
-                classification.get("auto_response"),
-                classification.get("deadline"),
-            )
+            # Notify backup if forwarded (for real-time delivery)
+            # (forward_to_backup node handles DB; we emit the socket event here)
+            # The socket_notify_fn injected into the graph handles message:new
 
         except Exception as exc:
-            logger.error("Autopilot processing failed for user %s: %s", participant_id, exc)
+            logger.error("Autopilot LangGraph failed for user %s: %s", participant_id, exc)
 
 
 @sio.event
@@ -233,6 +196,9 @@ async def message_delivered(sid, data):
     if not isinstance(message_id, str) or not isinstance(conversation_id, str):
         return
     if not message_id or not conversation_id:
+        return
+    # Verify user is a participant (IDOR protection)
+    if not await _verify_participant(user_id, conversation_id):
         return
 
     # Notify sender
@@ -256,6 +222,9 @@ async def message_read(sid, data):
 
     conversation_id = data.get("conversation_id")
     if not isinstance(conversation_id, str) or not conversation_id:
+        return
+    # Verify user is a participant (IDOR protection)
+    if not await _verify_participant(user_id, conversation_id):
         return
 
     await asyncio.to_thread(mark_messages_read, conversation_id, user_id)
@@ -285,6 +254,9 @@ async def group_created(sid, data):
     convo = await asyncio.to_thread(get_conversation_by_id, conversation_id)
     if not convo or convo["type"] != "group":
         return
+    # Verify sender is a participant
+    if user_id not in convo["participants"]:
+        return
 
     # Add all connected participants to the room
     room = f"conv:{conversation_id}"
@@ -311,6 +283,8 @@ async def typing_start(sid, data):
     conversation_id = data.get("conversation_id")
     if not isinstance(conversation_id, str) or not conversation_id:
         return
+    if not await _verify_participant(user_id, conversation_id):
+        return
 
     room = f"conv:{conversation_id}"
     await sio.emit("typing:indicator", {
@@ -333,6 +307,8 @@ async def typing_stop(sid, data):
 
     conversation_id = data.get("conversation_id")
     if not isinstance(conversation_id, str) or not conversation_id:
+        return
+    if not await _verify_participant(user_id, conversation_id):
         return
 
     room = f"conv:{conversation_id}"

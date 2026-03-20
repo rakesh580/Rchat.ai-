@@ -47,9 +47,18 @@ def upload_avatar(
     if file.content_type not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="Only JPEG, PNG, WebP, and GIF images are allowed")
 
-    contents = file.file.read()
-    if len(contents) > MAX_AVATAR_SIZE:
-        raise HTTPException(status_code=400, detail="Image must be under 5MB")
+    # Read in chunks to avoid OOM on large uploads
+    chunks = []
+    total_size = 0
+    while True:
+        chunk = file.file.read(1024 * 1024)  # 1MB chunks
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_AVATAR_SIZE:
+            raise HTTPException(status_code=400, detail="Image must be under 5MB")
+        chunks.append(chunk)
+    contents = b"".join(chunks)
 
     if not validate_image_magic(contents):
         raise HTTPException(status_code=400, detail="File content does not match a valid image format")

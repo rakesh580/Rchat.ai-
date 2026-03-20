@@ -9,12 +9,10 @@ from app.core.config import settings as app_settings
 
 _cors_origins = [o.strip() for o in app_settings.CORS_ORIGINS.split(",") if o.strip()]
 
-# In production (same-origin deployment), allow all origins for socket.io
-# since the main FastAPI CORS middleware handles cross-origin security.
-# Only restrict in dev when frontend runs on a different port.
+# Always use explicit CORS origins — never wildcard, even in production.
+# Socket.IO operates independently of FastAPI CORS middleware.
 import os
-_is_production = os.getenv("SPACE_ID") or os.getenv("ENV") == "production"
-_sio_cors = "*" if _is_production else _cors_origins
+_sio_cors = _cors_origins if _cors_origins else []
 
 sio = socketio.AsyncServer(
     async_mode="asgi",

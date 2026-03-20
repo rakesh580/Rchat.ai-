@@ -1,11 +1,13 @@
 import { io } from "socket.io-client";
 import { API_HOST } from "../api";
 
-export function createSocket(token) {
-  // In production (same origin), pass undefined so socket.io uses window.location
+export function createSocket(tokenOrGetter) {
   const target = API_HOST || undefined;
   return io(target, {
-    auth: { token },
+    auth: (cb) => {
+      const token = typeof tokenOrGetter === "function" ? tokenOrGetter() : tokenOrGetter;
+      cb({ token });
+    },
     autoConnect: false,
   });
 }

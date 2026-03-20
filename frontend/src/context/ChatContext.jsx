@@ -4,6 +4,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
 } from "react";
 import { useAuth } from "./AuthContext";
 import { useSocket } from "./SocketContext";
@@ -24,7 +25,7 @@ export function ChatProvider({ children }) {
 
   // Load conversations
   useEffect(() => {
-    if (!token) return;
+    if (!token) { setLoadingConversations(false); return; }
     api("/conversations", { token })
       .then((data) => {
         setConversations(data);
@@ -73,7 +74,7 @@ export function ChatProvider({ children }) {
       if (activeConversation && msg.conversation_id === activeConversation._id) {
         setMessages((prev) => {
           // Check duplicates by _id or temp_id
-          if (prev.some((m) => m._id === msg._id || (m.temp_id && m._id === msg._id))) return prev;
+          if (prev.some((m) => m._id === msg._id || (m.temp_id && msg.temp_id && m.temp_id === msg.temp_id))) return prev;
           return [...prev, msg];
         });
         socket.emit("message_read", {
@@ -206,10 +207,19 @@ export function ChatProvider({ children }) {
     };
   }, [socket, activeConversation?._id, user?._id, token]);
 
+  const _lastSendTimes = useRef([]);
+
   const sendMessage = useCallback(
     (content) => {
       if (!socket || !activeConversation) return;
-      const tempId = `temp_${Date.now()}`;
+
+      // Client-side rate limiting: max 10 messages per 10 seconds
+      const now = Date.now();
+      _lastSendTimes.current = _lastSendTimes.current.filter((t) => now - t < 10000);
+      if (_lastSendTimes.current.length >= 10) return;
+      _lastSendTimes.current.push(now);
+
+      const tempId = `temp_${now}_${Math.random().toString(36).slice(2, 8)}`;
 
       const optimisticMsg = {
         _id: tempId,
@@ -288,7 +298,6 @@ export function ChatProvider({ children }) {
         startTyping,
         stopTyping,
         selectConversation,
-        setConversations,
         refreshConversations,
         showBriefing,
         setShowBriefing,

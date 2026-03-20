@@ -34,11 +34,17 @@ def create_conversation(request: Request, body: ConversationCreate, current_user
         if len(body.participant_ids) != 1:
             raise HTTPException(status_code=400, detail="Direct chat needs exactly 1 other participant")
         other_id = body.participant_ids[0]
+        # Verify the other user exists
+        other_user = get_user_by_id(other_id)
+        if not other_user:
+            raise HTTPException(status_code=404, detail="User not found")
         return get_or_create_direct(user_id, other_id)
 
     elif body.type == "group":
         if not body.group_name:
             raise HTTPException(status_code=400, detail="Group name is required")
+        if len(body.participant_ids) > 50:
+            raise HTTPException(status_code=400, detail="Maximum 50 participants allowed")
         return create_group(user_id, body.participant_ids, body.group_name)
 
     raise HTTPException(status_code=400, detail="Invalid type")

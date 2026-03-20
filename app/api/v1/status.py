@@ -62,9 +62,18 @@ def post_status(
                 raise HTTPException(status_code=400, detail="Only MP4, WebM, and MOV videos are allowed")
             max_size = MAX_VIDEO_SIZE
 
-        contents = file.file.read()
-        if len(contents) > max_size:
-            raise HTTPException(status_code=400, detail=f"File must be under {max_size // (1024*1024)}MB")
+        # Read in chunks to avoid OOM on large uploads
+        chunks = []
+        total_size = 0
+        while True:
+            chunk = file.file.read(1024 * 1024)  # 1MB chunks
+            if not chunk:
+                break
+            total_size += len(chunk)
+            if total_size > max_size:
+                raise HTTPException(status_code=400, detail=f"File must be under {max_size // (1024*1024)}MB")
+            chunks.append(chunk)
+        contents = b"".join(chunks)
 
         # Validate file magic numbers
         if type == "image" and not validate_image_magic(contents):

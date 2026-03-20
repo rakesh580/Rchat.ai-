@@ -45,18 +45,35 @@ def authenticate_user(username_or_email: str, password: str) -> dict | None:
     return user
 
 
-ALLOWED_PROFILE_COLUMNS = {"display_name", "bio", "avatar_url"}
+# Explicit mapping of allowed columns to prevent SQL injection
+_ALLOWED_COLUMN_MAP = {
+    "display_name": "display_name",
+    "bio": "bio",
+    "avatar_url": "avatar_url",
+}
 
 
 def update_user_profile(user_id: str, updates: dict) -> dict | None:
-    clean = {k: v for k, v in updates.items() if v is not None and k in ALLOWED_PROFILE_COLUMNS}
+    clean = {_ALLOWED_COLUMN_MAP[k]: v for k, v in updates.items()
+             if v is not None and k in _ALLOWED_COLUMN_MAP}
     if not clean:
         return get_user_by_id(user_id)
 
-    set_clauses = ", ".join(f"{k} = %s" for k in clean)
+    from psycopg2 import sql
+    set_parts = [sql.SQL("{} = %s").format(sql.Identifier(col)) for col in clean]
+    set_clause = sql.SQL(", ").join(set_parts)
+    query_sql = sql.SQL("UPDATE users SET {} WHERE id = %s").format(set_clause)
+
     values = list(clean.values()) + [user_id]
-    execute(
-        f"UPDATE users SET {set_clauses} WHERE id = %s",
-        tuple(values),
-    )
+    from app.db.postgres import get_conn, put_conn
+    conn = get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(query_sql, tuple(values))
+            conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        put_conn(conn)
     return get_user_by_id(user_id)

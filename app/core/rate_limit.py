@@ -1,18 +1,25 @@
+import os
 from slowapi import Limiter
 from starlette.requests import Request
 
 
+# Only trust proxy headers when explicitly configured (e.g., behind nginx/HF Spaces)
+_TRUST_PROXY = os.getenv("TRUST_PROXY", "").lower() in ("1", "true", "yes")
+
+
 def get_real_ip(request: Request) -> str:
-    """Extract client IP, handling reverse proxies (HF Spaces, nginx, etc.)."""
-    # Check X-Forwarded-For first (set by reverse proxies)
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    # Check X-Real-IP
-    real_ip = request.headers.get("X-Real-IP")
-    if real_ip:
-        return real_ip.strip()
-    # Fall back to direct client (may be None behind proxy)
+    """Extract client IP — only trusts proxy headers when TRUST_PROXY is set."""
+    if _TRUST_PROXY:
+        forwarded = request.headers.get("X-Forwarded-For")
+        if forwarded:
+            # Take the rightmost IP added by the trusted proxy, not the leftmost (client-supplied)
+            parts = [p.strip() for p in forwarded.split(",")]
+            if len(parts) >= 2:
+                return parts[-2]  # IP added by the last trusted proxy
+            return parts[0]
+        real_ip = request.headers.get("X-Real-IP")
+        if real_ip:
+            return real_ip.strip()
     if request.client:
         return request.client.host
     return "127.0.0.1"

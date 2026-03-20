@@ -20,9 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Switch to non-root user BEFORE installing deps
+USER user
+
+# Install Python dependencies as non-root
 COPY --chown=user requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Copy backend code
 COPY --chown=user app/ ./app/
@@ -31,10 +34,7 @@ COPY --chown=user app/ ./app/
 COPY --from=frontend-build --chown=user /app/frontend/dist ./frontend/dist
 
 # Create uploads directory with user permissions
-RUN mkdir -p uploads/avatars uploads/status && chown -R user:user uploads
-
-# Switch to non-root user
-USER user
+RUN mkdir -p uploads/avatars uploads/status
 
 # HF Spaces runs on port 7860
 EXPOSE 7860

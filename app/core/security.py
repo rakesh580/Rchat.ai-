@@ -20,14 +20,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 # ---------------------------
 # Token Utilities
 # ---------------------------
-def create_access_token(data: dict, expires_delta=None):
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
 
-    if isinstance(expires_delta, timedelta):
+    if expires_delta is not None:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(
-            minutes=expires_delta or settings.ACCESS_TOKEN_EXPIRE_MINUTES
+            minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
 
     to_encode.update({"exp": expire})

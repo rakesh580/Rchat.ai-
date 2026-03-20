@@ -20,7 +20,34 @@ import app.sockets.events  # noqa: F401 — registers event handlers
 logger = logging.getLogger("rchat")
 logging.basicConfig(level=logging.INFO)
 
-fastapi_app = FastAPI(title="Rchat.ai")
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    # Startup
+    init_db()
+    # Create token_blocklist table if it doesn't exist
+    try:
+        from app.db.postgres import execute as _execute
+        _execute("""
+            CREATE TABLE IF NOT EXISTS token_blocklist (
+                id SERIAL PRIMARY KEY,
+                token_hash TEXT UNIQUE NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL,
+                created_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        _execute("CREATE INDEX IF NOT EXISTS idx_token_blocklist_hash ON token_blocklist (token_hash)")
+        _execute("DELETE FROM token_blocklist WHERE expires_at < NOW()")
+    except Exception:
+        pass  # Table creation is best-effort
+    base = os.path.join(os.path.dirname(__file__), "..", "uploads")
+    os.makedirs(os.path.join(base, "avatars"), exist_ok=True)
+    os.makedirs(os.path.join(base, "status"), exist_ok=True)
+    yield
+    # Shutdown — clean up if needed
+
+fastapi_app = FastAPI(title="Rchat.ai", lifespan=lifespan)
 fastapi_app.state.limiter = limiter
 fastapi_app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -32,7 +59,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled %s on %s %s: %s\n%s", type(exc).__name__, request.method, request.url.path, exc, tb)
     return JSONResponse(
         status_code=500,
-        content={"detail": f"{type(exc).__name__}: {str(exc)}"},
+        content={"detail": "Internal server error"},
     )
 
 cors_origins = [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()]
@@ -61,15 +88,6 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 fastapi_app.add_middleware(SecurityHeadersMiddleware)
 
 
-@fastapi_app.on_event("startup")
-def on_startup():
-    init_db()
-    # Ensure uploads directories exist
-    base = os.path.join(os.path.dirname(__file__), "..", "uploads")
-    os.makedirs(os.path.join(base, "avatars"), exist_ok=True)
-    os.makedirs(os.path.join(base, "status"), exist_ok=True)
-
-
 fastapi_app.include_router(api_router, prefix="/api/v1")
 
 # Serve uploaded files (avatars, status media)
@@ -88,7 +106,10 @@ if os.path.isdir(_frontend_dist):
     # Catch-all: serve index.html for SPA client-side routing
     @fastapi_app.get("/{path:path}")
     async def serve_spa(path: str):
-        file_path = os.path.join(_frontend_dist, path)
+        file_path = os.path.realpath(os.path.join(_frontend_dist, path))
+        # Prevent path traversal — resolved path must stay within frontend dist
+        if not file_path.startswith(os.path.realpath(_frontend_dist)):
+            return FileResponse(os.path.join(_frontend_dist, "index.html"))
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse(os.path.join(_frontend_dist, "index.html"))

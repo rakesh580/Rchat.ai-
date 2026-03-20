@@ -45,7 +45,7 @@ def get_or_create_direct(user_id: str, other_user_id: str) -> dict:
 
 
 def create_group(creator_id: str, participant_ids: list[str], group_name: str) -> dict:
-    all_participants = list(set([creator_id] + participant_ids))
+    all_participants = list(dict.fromkeys([creator_id] + participant_ids))
 
     conn = get_conn()
     try:
@@ -93,14 +93,6 @@ def get_user_conversations(user_id: str) -> list[dict]:
         convo.pop("my_id", None)
 
         # Get participants with profiles
-        participants = query(
-            """SELECT u.id, u.username, u.display_name, u.avatar_url, u.is_online, u.last_seen, u.is_bot
-               FROM users u
-               JOIN conversation_participants cp ON u.id = cp.conversation_id
-               WHERE cp.conversation_id = %s""",
-            (conv_id,),
-        )
-        # Fix: that join was wrong, let me use a proper query
         participants = query(
             """SELECT u.id AS _id, u.username, u.display_name, u.avatar_url, u.is_online, u.last_seen, u.is_bot
                FROM conversation_participants cp

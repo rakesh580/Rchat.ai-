@@ -14,12 +14,12 @@ export default function GroupInfoPanel({ onClose }) {
   const [searchResults, setSearchResults] = useState([]);
   const [showAddMember, setShowAddMember] = useState(false);
 
-  if (!activeConversation || activeConversation.type !== "group") return null;
-
-  const isAdmin = activeConversation.admins?.includes(user?._id);
-  const participants = activeConversation.participants || [];
+  const isGroup = activeConversation && activeConversation.type === "group";
+  const isAdmin = isGroup ? activeConversation.admins?.includes(user?._id) : false;
+  const participants = isGroup ? activeConversation.participants || [] : [];
 
   useEffect(() => {
+    if (!isGroup) return;
     if (!searchQuery.trim()) {
       setSearchResults([]);
       return;
@@ -37,7 +37,9 @@ export default function GroupInfoPanel({ onClose }) {
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery, token]);
+  }, [searchQuery, token, isGroup]);
+
+  if (!isGroup) return null;
 
   const handleAddMember = async (userId) => {
     try {

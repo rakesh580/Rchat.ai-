@@ -14,3 +14,6 @@ groq==0.25.0
 python-socketio[asyncio]==5.12.1
 httpx==0.28.1
 cryptography==44.0.0
+langgraph>=0.2.0
+langchain-core>=0.3.0
+langchain-groq>=0.2.0

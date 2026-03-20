@@ -45,7 +45,7 @@ def get_status_feed(user_id: str) -> list[dict]:
                       ARRAY[]::text[]
                   ) AS viewed_by
            FROM statuses s
-           JOIN contacts c ON c.contact_id = s.user_id::text AND c.user_id = %s
+           JOIN contacts c ON c.contact_id::uuid = s.user_id AND c.user_id = %s
            JOIN users u ON u.id = s.user_id
            WHERE s.expires_at > NOW()
            ORDER BY s.created_at ASC""",

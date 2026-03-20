@@ -48,7 +48,18 @@ export default function Register() {
       });
       navigate("/login", { state: { registered: true } });
     } catch (err) {
-      setError(err.message);
+      const msg = err.message || "";
+      if (msg.includes("unavailable") || msg.includes("already")) {
+        setError("Email or username is already taken. Please choose different ones.");
+      } else if (msg.includes("Rate limit") || msg.includes("429")) {
+        setError("Too many registration attempts. Please wait a minute.");
+      } else if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed")) {
+        setError("Unable to connect to the server. Please check your connection.");
+      } else if (msg.includes("Password must") || msg.includes("Username")) {
+        setError(msg); // These are validation messages, show as-is
+      } else {
+        setError("Registration failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

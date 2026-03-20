@@ -29,10 +29,22 @@ export default function Login() {
         method: "POST",
         body: { username_or_email: emailOrUsername, password },
       });
-      login(data.access_token);
+      login(data.access_token, data.user || null);
       navigate("/chat");
     } catch (err) {
-      setError(err.message);
+      // Map known error patterns to user-friendly messages
+      const msg = err.message || "";
+      if (msg.includes("Session expired")) {
+        setError("Your session has expired. Please log in again.");
+      } else if (msg.includes("Invalid username") || msg.includes("Invalid password") || msg.includes("401")) {
+        setError("Invalid email/username or password. Please try again.");
+      } else if (msg.includes("Rate limit") || msg.includes("429")) {
+        setError("Too many login attempts. Please wait a minute and try again.");
+      } else if (msg.includes("fetch") || msg.includes("network") || msg.includes("Failed")) {
+        setError("Unable to connect to the server. Please check your connection.");
+      } else {
+        setError("Login failed. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

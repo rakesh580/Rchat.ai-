@@ -65,7 +65,15 @@ def login(request: Request, user_in: UserLogin):
         data={"sub": str(user["_id"])},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
-    response = JSONResponse(content={"access_token": token, "token_type": "bearer"})
+    user_data = {
+        "_id": str(user["_id"]),
+        "username": user["username"],
+        "email": user["email"],
+        "display_name": user.get("display_name") or user["username"],
+        "avatar_url": user.get("avatar_url"),
+        "is_autopilot": user.get("is_autopilot", False),
+    }
+    response = JSONResponse(content={"access_token": token, "token_type": "bearer", "user": user_data})
     response.set_cookie(
         key="access_token",
         value=token,
@@ -93,6 +101,59 @@ def login_for_swagger(request: Request, form_data: OAuth2PasswordRequestForm = D
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return Token(access_token=token)
+
+
+@router.post("/refresh")
+def refresh_token(request: Request):
+    """Issue a fresh access token using the httpOnly cookie.
+    This allows the frontend to restore sessions after page refresh."""
+    cookie_token = request.cookies.get("access_token")
+    if not cookie_token:
+        raise HTTPException(status_code=401, detail="No session cookie")
+
+    # Check if token has been blocklisted
+    from app.core.token_blocklist import is_token_blocklisted
+    if is_token_blocklisted(cookie_token):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+
+    from app.core.security import decode_access_token
+    payload = decode_access_token(cookie_token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+
+    from app.services.user_service import get_user_by_id
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    # Issue a fresh token
+    new_token = create_access_token(
+        data={"sub": str(user["_id"])},
+        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+
+    user_data = {k: v for k, v in user.items() if k != "hashed_password"}
+    user_data["_id"] = str(user_data["_id"])
+
+    response = JSONResponse(content={
+        "access_token": new_token,
+        "token_type": "bearer",
+        "user": user_data,
+    })
+    response.set_cookie(
+        key="access_token",
+        value=new_token,
+        httponly=True,
+        secure=settings.COOKIE_SECURE,
+        samesite="strict",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    return response
 
 
 @router.post("/logout")

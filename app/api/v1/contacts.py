@@ -37,8 +37,8 @@ def create_contact(request: Request, body: ContactCreate, current_user=Depends(g
         raise HTTPException(status_code=400, detail="Cannot add yourself")
     try:
         return add_contact(user_id, body.contact_id)
-    except (UniqueViolation, Exception) as e:
-        if "unique" in str(e).lower() or "duplicate" in str(e).lower():
+    except Exception as e:
+        if isinstance(e, UniqueViolation) or "unique" in str(e).lower() or "duplicate" in str(e).lower():
             raise HTTPException(status_code=400, detail="Contact already exists")
         raise
 

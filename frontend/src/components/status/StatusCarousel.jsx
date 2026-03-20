@@ -27,7 +27,12 @@ export default function StatusCarousel() {
 
   useEffect(() => {
     fetchStatuses();
-    const interval = setInterval(fetchStatuses, 30000); // refresh every 30s
+    const interval = setInterval(() => {
+      // Only poll when tab is visible to save bandwidth/battery
+      if (document.visibilityState === "visible") {
+        fetchStatuses();
+      }
+    }, 30000);
     return () => clearInterval(interval);
   }, [token]);
 

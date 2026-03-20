@@ -96,6 +96,7 @@ export default function CreateGroupModal({ onClose }) {
             placeholder="Group name"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
+            maxLength={50}
           />
 
           {selectedUsers.length > 0 && (

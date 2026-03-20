@@ -36,13 +36,15 @@ def validate_image_magic(data: bytes) -> bool:
 
 def validate_video_magic(data: bytes) -> bool:
     """Check if file content starts with a known video magic number."""
-    # MP4/MOV: check for ftyp box anywhere in first 12 bytes
-    if len(data) >= 12 and b"ftyp" in data[:12]:
+    if len(data) < 8:
+        return False
+    # MP4/MOV: ftyp box — box type must be at offset 4
+    if data[4:8] == b"ftyp" and len(data) >= 12:
         return True
     # WebM: starts with EBML header
     if data[:4] == b"\x1aE\xdf\xa3":
         return True
-    # MOV: moov atom
-    if len(data) >= 8 and data[4:8] in (b"moov", b"ftyp", b"mdat", b"wide", b"free"):
+    # MOV variants: moov, mdat, wide, free atoms at offset 4
+    if data[4:8] in (b"moov", b"mdat", b"wide", b"free"):
         return True
     return False
